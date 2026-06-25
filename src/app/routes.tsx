@@ -15,6 +15,7 @@ import { AdminEstilos } from './pages/admin/AdminEstilos';
 import { AdminClients } from './pages/admin/AdminClients'; 
 import { AdminOrders } from './pages/admin/AdminOrders';
 import { CatalogoPage } from './pages/Catalogo'; // 🔑 1. IMPORTAMOS TU NUEVO CATÁLOGO
+import { DireccionesPage } from './pages/Direccionespage';
 
 export const router = createBrowserRouter([
   {
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
       { path: 'favoritos', Component: FavoritesPage },
       { path: 'carrito', Component: CartPage },
       { path: 'buscar',  Component: SearchPage },
+      { path: 'perfil/direcciones', Component: DireccionesPage },
     ],
   },
   {

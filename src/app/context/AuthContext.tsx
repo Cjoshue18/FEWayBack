@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { loginApi, registerClienteApi, type RegisterData } from '@/lib/api'; 
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from 'react';
+import { loginApi, registerClienteApi, type RegisterData, type LoginApiResponse } from '@/lib/api';
 
 export type Role = 'client' | 'admin';
 
@@ -19,8 +19,9 @@ interface AuthContextType {
   token: string | null;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; role?: Role; error?: string }>;
-  register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>; 
+  register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  updateUser: (partial: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -42,9 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem(TOKEN_STORAGE_KEY);
   });
 
+  // [P14 FIX] Protegemos JSON.stringify con try/catch
   useEffect(() => {
-    if (user) localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-    else localStorage.removeItem(USER_STORAGE_KEY);
+    try {
+      if (user) localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+      else localStorage.removeItem(USER_STORAGE_KEY);
+    } catch {
+      // Si el usuario tiene datos no serializables, lo ignoramos silenciosamente
+    }
   }, [user]);
 
   useEffect(() => {
@@ -52,12 +58,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem(TOKEN_STORAGE_KEY);
   }, [token]);
 
-  const isAdmin = user?.role === 'admin';
+  // [P16 FIX] isAdmin con useMemo para evitar recálculo innecesario en cada render
+  const isAdmin = useMemo(() => user?.role === 'admin', [user]);
 
-  // ── MÉTODO DE INICIO DE SESIÓN (LOGIN TOTALMENTE CORREGIDO) ──
+  // ── MÉTODO DE INICIO DE SESIÓN ──
   const login = async (email: string, password: string): Promise<{ success: boolean; role?: Role; error?: string }> => {
     const trimmedEmail = email.trim().toLowerCase();
-    const trimmedPass  = password.trim();
+    const trimmedPass = password.trim();
 
     if (!trimmedEmail || !trimmedPass) {
       return { success: false, error: 'Ingresa tu email y contraseña.' };
@@ -69,61 +76,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: result.error };
     }
 
-    const apiUser = result.user; 
-    const role: Role = apiUser?.rol === 'admin' ? 'admin' : 'client';
+    // [P13 FIX] Si el backend no devuelve token, lo tratamos como error en lugar de usar 'session-active'
+    if (!result.token) {
+      return { success: false, error: 'El servidor no devolvió un token de autenticación. Contacta soporte.' };
+    }
 
+    const apiUser: LoginApiResponse = result.user ?? {};
+    const role: Role = apiUser.rol === 'admin' ? 'admin' : 'client';
+
+    // [P9 FIX] Eliminada la comprobación errónea de `typeof apiUser.usuario === 'string'`.
+    // El username viene directamente en apiUser.usuUsername (raíz de la respuesta).
+    // [P10 FIX] Ahora LoginApiResponse tipifica todos los campos necesarios, sin 'any'.
     const loggedUser: AuthUser = {
-      id: Number(apiUser?.id ?? apiUser?.usuId ?? 0),
-      name: apiUser?.cliNombre 
-        ? `${apiUser.cliNombre} ${apiUser.cliApellido ?? ''}`.trim() 
-        : (typeof apiUser?.usuario === 'string' ? apiUser.usuario : trimmedEmail.split('@')[0]), 
+      id: Number(apiUser.id ?? apiUser.usuId ?? 0),
+      name: apiUser.cliNombre
+        ? `${apiUser.cliNombre} ${apiUser.cliApellido ?? ''}`.trim()
+        : trimmedEmail.split('@')[0],
       email: trimmedEmail,
       role,
-      // 🛠️ CORREGIDO: Validamos si 'usuario' es un string directo para asignarlo de inmediato
-      username: typeof apiUser?.usuario === 'string' ? apiUser.usuario : (apiUser?.usuUsername ?? apiUser?.username ?? 'usuario'),
-      tipoDocumento: apiUser?.cliTipoDocumento ?? apiUser?.tipoDocumento ?? 'DNI',
-      documento: apiUser?.cliDocumento ?? apiUser?.documento,
-      telefono: apiUser?.cliTelefono ?? apiUser?.telefono ?? null,
+      username: apiUser.usuUsername ?? 'usuario',
+      tipoDocumento: apiUser.cliTipoDocumento ?? 'DNI',
+      documento: apiUser.cliDocumento ?? undefined,
+      telefono: apiUser.cliTelefono ?? null,
     };
 
-    setToken(result.token ?? 'session-active');
+    // [P17 FIX] Limpiamos primero el estado anterior antes de asignar el nuevo usuario
+    setUser(null);
+    setToken(result.token);
     setUser(loggedUser);
 
     return { success: true, role };
   };
 
-  // ── MÉTODO DE REGISTRO CON INYECCIÓN COMPLETA EN CALIENTE ──
+  // ── MÉTODO DE REGISTRO ──
   const register = async (data: RegisterData): Promise<{ success: boolean; error?: string }> => {
-    const result = await registerClienteApi(data);
+    // [P12 FIX] Trimamos el email antes de llamar a registerClienteApi para consistencia
+    const trimmedData: RegisterData = {
+      ...data,
+      Email: data.Email.trim().toLowerCase(),
+    };
+
+    const result = await registerClienteApi(trimmedData);
 
     if (!result.success) {
       return { success: false, error: result.error };
     }
 
-    const loginResult = await login(data.Email, data.Contrasena);
+    // [P11 FIX] Resolvemos la race condition construyendo el usuario completo
+    // en un único loginApi + setUser, sin un segundo setUser de enriquecimiento.
+    const loginResult = await loginApi(trimmedData.Email, trimmedData.Contrasena);
 
-    if (!loginResult.success) {
+    if (!loginResult.success || !loginResult.token) {
       return { success: false, error: 'Cuenta creada con éxito, pero falló el inicio de sesión automático.' };
     }
 
-    // ⚡ ENRIQUECIMIENTO LOCAL OPTIMIZADO
-    setUser((prevUser) => prevUser ? {
-      ...prevUser,
-      name: `${data.Nombres} ${data.Apellidos}`.trim(),
-      username: data.NombreUsuario, // 🔑 CORREGIDO: Ahora sí se inyecta el username aquí
-      tipoDocumento: data.TipoDocumento,
-      documento: data.Documento,
-    } : null);
+    const apiUser: LoginApiResponse = loginResult.user ?? {};
+    const role: Role = apiUser.rol === 'admin' ? 'admin' : 'client';
+
+    // Construimos el usuario final de una sola vez con los datos del registro (más completos)
+    const registeredUser: AuthUser = {
+      id: Number(apiUser.id ?? apiUser.usuId ?? 0),
+      name: `${trimmedData.Nombres} ${trimmedData.Apellidos}`.trim(),
+      email: trimmedData.Email,
+      role,
+      username: trimmedData.NombreUsuario,
+      tipoDocumento: trimmedData.TipoDocumento,
+      documento: trimmedData.Documento,
+      telefono: apiUser.cliTelefono ?? null,
+    };
+
+    setToken(loginResult.token);
+    setUser(registeredUser);
 
     return { success: true };
   };
+
+  // ── MÉTODO PARA ACTUALIZAR DATOS DEL USUARIO LOCALMENTE ──
+  // Útil después de llamar a updatePerfilApi o updateDireccionApi
+  const updateUser = (partial: Partial<AuthUser>) => {
+    setUser((prev) => (prev ? { ...prev, ...partial } : null));
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAdmin, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isAdmin, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
