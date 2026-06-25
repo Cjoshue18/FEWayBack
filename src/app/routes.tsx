@@ -7,17 +7,15 @@ import { UserProfilePage } from './pages/UserProfilePage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { CartPage } from './pages/CartPage';
 import { SearchPage } from './pages/SearchPage';
+import { CatalogoPage } from './pages/Catalogo'; 
 
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminProducts } from './pages/admin/AdminProducts';
 import { AdminCategories } from './pages/admin/AdminCategories';
-<<<<<<< HEAD
 import { AdminClients } from './pages/admin/AdminClients';
-=======
-import { AdminUsers } from './pages/admin/AdminUsers';
->>>>>>> 5f1ab9082ade012e692c6e502bed76d81603c5d5
 import { AdminOrders } from './pages/admin/AdminOrders';
+import { AdminEstilos } from './pages/admin/AdminEstilos'; 
 
 export const router = createBrowserRouter([
   {
@@ -25,8 +23,8 @@ export const router = createBrowserRouter([
     Component: RootLayout,
     children: [
       { index: true, Component: HomePage },
-      { path: 'categoria/:categoryId', Component: CategoryPage }, // 🔑 Mapea directo a tu página funcional
-      { path: 'catalogo', Component: CatalogoPage }, // Deja el catálogo limpio para "Ver todo"
+      { path: 'categoria/:categoryId', Component: CategoryPage }, 
+      { path: 'catalogo', Component: CatalogoPage }, 
       { path: 'contacto', Component: ContactoPage },
       { path: 'perfil', Component: UserProfilePage },
       { path: 'favoritos', Component: FavoritesPage },
@@ -41,12 +39,9 @@ export const router = createBrowserRouter([
       { index: true,             Component: AdminDashboard },
       { path: 'productos',       Component: AdminProducts },
       { path: 'categorias',      Component: AdminCategories },
-<<<<<<< HEAD
       { path: 'usuarios',        Component: AdminClients },
-=======
-      { path: 'usuarios',        Component: AdminUsers },
->>>>>>> 5f1ab9082ade012e692c6e502bed76d81603c5d5
       { path: 'pedidos',         Component: AdminOrders },
+      { path: 'estilos',         Component: AdminEstilos }, 
     ],
   },
 ]);
