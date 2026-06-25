@@ -1,29 +1,29 @@
 import { useState } from 'react';
 import { X, Eye, EyeOff, ArrowRight, Loader } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router'; 
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSwitchToRegister: () => void; // 🔑 AÑADE ESTA LÍNEA DE CABLEADO
 }
 
-export function LoginModal({ isOpen, onClose }: LoginModalProps) {
+export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalProps) {
   const { login } = useAuth();
-
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+  const navigate = useNavigate(); 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    await new Promise((r) => setTimeout(r, 700));
-
-    const result = login(email, password);
+    const result = await login(email, password);
     setLoading(false);
 
     if (!result.success) {
@@ -33,6 +33,13 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
     onClose();
     resetForm();
+
+    // Redirección según el rol devuelto por la BD
+    if (result.role === 'admin') {
+      navigate('/admin/dashboard'); 
+    } else {
+      navigate('/'); 
+    }
   };
 
   const resetForm = () => {
@@ -69,7 +76,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
           style={{ width: 400, flexShrink: 0, background: '#0a0a0a', overflow: 'hidden' }}
         >
           <img
-            src="https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=800&q=90"
+            src="https://i.pinimg.com/736x/66/fc/b0/66fcb043002f1f21659c0d53341ce73f.jpg"
             alt="Wayback editorial"
             className="absolute inset-0 w-full h-full object-cover"
             style={{ opacity: 0.5 }}
@@ -199,11 +206,29 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 onMouseLeave={(e) => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = '#7c3aed'; }}
               >
                 {loading
-                  ? <><Loader style={{ width: 14, height: 14 }} className="animate-spin" /> Verificando…</>
+                  ? <><Loader style={{ width: 14, height: 14 }} className="animate-spin" /> Conectando al servidor…</>
                   : <><span>Ingresar</span><ArrowRight style={{ width: 14, height: 14 }} /></>
                 }
               </button>
             </form>
+
+            {/* 🛠️ ENLACE DE REGISTRO NUEVO AJUSTADO AL DISEÑO EDITORIAL */}
+            <p
+  className="text-center mt-5"
+  style={{ fontSize: '13px', color: '#4b5563', letterSpacing: '-0.01em' }} // 🛠️ Corregido a string y letterSpacing
+>
+  ¿No tienes una cuenta?{' '}
+  <button
+  type="button"
+  onClick={() => {
+    handleClose(); // Resetea campos e internos del modal anterior
+    onSwitchToRegister(); // 🔑 Activa la transición limpia al Modal de registro
+  }}
+  className="font-bold hover:underline bg-transparent border-none p-0 cursor-pointer text-[#7c3aed]"
+>
+  Regístrate aquí
+</button>
+</p>
 
             {/* hint */}
             <p
@@ -214,13 +239,12 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
               Clientes y administradores usan el mismo login.
             </p>
 
-            {/* demo hint */}
             <div
               className="mt-4 p-3 text-center"
-              style={{ background: '#fafafa', border: '1px solid #f3f4f6' }}
+              style={{ background: '#fafafa', border: '1px solid #e5e7eb' }}
             >
-              <p style={{ fontSize: 11, color: '#9ca3af' }}>
-                <strong style={{ color: '#7c3aed' }}>Admin demo:</strong> admin@wayback.com · admin123
+              <p style={{ fontSize: 11, color: '#6b7280' }}>
+                Conectado en vivo a la base de datos de <span className="font-semibold text-[#7c3aed]">Y2KVault API</span>.
               </p>
             </div>
           </div>

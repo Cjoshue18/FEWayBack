@@ -93,16 +93,17 @@ export function ProductCard({ product }: ProductCardProps) {
             >
               {product.name}
             </p>
-            <div className="flex items-baseline gap-1.5">
-              {product.originalPrice && (
-                <span className="line-through text-gray-400" style={{ fontSize: 12 }}>
-                  ${product.originalPrice}
-                </span>
-              )}
-              <span style={{ fontSize: 17, fontWeight: 800, color: '#7c3aed' }}>
-                ${product.price}
-              </span>
-            </div>
+            {/* ── CAMBIAR EN TU PRODUCTCARD.TSX ── */}
+<div className="flex items-baseline gap-1.5">
+  {product.originalPrice && (
+    <span className="line-through text-gray-400" style={{ fontSize: 12 }}>
+      S/ {product.originalPrice} {/* 🔑 Cambiado de $ a S/ */}
+    </span>
+  )}
+  <span style={{ fontSize: 17, fontWeight: 800, color: '#7c3aed' }}>
+    S/ {product.price} {/* 🔑 Cambiado de $ a S/ */}
+  </span>
+</div>
           </div>
 
           {/* quick-view "+" button */}

@@ -4,21 +4,21 @@ import { useNavigate } from 'react-router';
 
 const slides = [
   {
-    url: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=1600&q=85',
+    url: 'https://res.cloudinary.com/duxjpbmhs/image/upload/c_scale,w_1800,e_upscale,f_auto,q_auto/v1781326951/Newjeans_Hyein_design_by_me_%EF%B8%8E_rdualk.jpg',
     eyebrow: 'Wayback · SS25',
     title: 'No es vintage.\nEs eterno.',
     cta: 'Explorar',
     ctaPath: '/categoria/camisetas',
   },
   {
-    url: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=1600&q=85',
+    url: 'https://res.cloudinary.com/duxjpbmhs/image/upload/c_scale,w_1800,e_upscale,f_auto,q_auto/v1781327253/jpg_1_f6ifge.jpg',
     eyebrow: 'Colección Denim',
     title: 'Construido\npara quedar.',
     cta: 'Ver Sets Denim',
     ctaPath: '/categoria/sets-denim',
   },
   {
-    url: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1600&q=85',
+    url: 'https://i.pinimg.com/1200x/63/6c/75/636c75518cd7ce7266abbdbfc956a1b7.jpg5',
     eyebrow: 'Wayback Sets',
     title: 'Vestir fácil.\nDestacar siempre.',
     cta: 'Ver Colecciones',

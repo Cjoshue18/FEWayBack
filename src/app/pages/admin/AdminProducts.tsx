@@ -1,156 +1,246 @@
-import { useState } from 'react';
-import { Plus, Search, Edit2, Trash2, X, ChevronDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, Edit2, Trash2, X, Eye } from 'lucide-react';
+import { getProductos, fetchJson } from '@/lib/api'; 
+import type { Product } from '@/lib/api';
+
+const API_BASE = 'https://y2kvault-backend.onrender.com';
 
 const CATEGORIAS = ['Pantalón','Falda','Shorts','Jogger','Camisetas','Suéteres','Chaquetas','Sets Baggy','Sets Denim','Sets Deportivos','Sets Tejidos'];
-const TALLAS     = ['S','M','L','XL'];
-const SEXOS      = ['Mujer','Hombre','Unisex'];
 
-interface Producto {
-  pro_id: number;
-  pro_nombre: string;
-  categoria: string;
-  sexo: string;
-  pro_descuento: number;
-  pro_fecha_creacion: string;
-}
-
-const EMPTY_PRODUCTS: Producto[] = [];
+// ✅ Géneros en minúsculas exactos que acepta el regex del backend: ^(masculino|femenino|unisex)$
+const SEXOS: { label: string; value: string }[] = [
+  { label: 'Mujer',   value: 'femenino'  },
+  { label: 'Hombre',  value: 'masculino' },
+  { label: 'Unisex',  value: 'unisex'    },
+];
 
 interface FormData {
   pro_nombre: string;
   pro_descripcion: string;
-  categoria: string;
-  sexo: string;
-  pro_descuento: string;
-  talla: string;
-  precio: string;
-  stock: string;
+  categoria: string;          // nombre legible → se convierte a CatId al enviar
+  sexo: string;               // 'masculino' | 'femenino' | 'unisex'
+  precio: number;
+  estiloId: number;           // EstId en el DTO
+  imagenUrl: string;
+  descuento: number;          // ProDescuento (short?)
+  descuentoInicio: string;    // ISO string o vacío
+  descuentoFin: string;       // ISO string o vacío
 }
 
 const EMPTY_FORM: FormData = {
   pro_nombre: '', pro_descripcion: '', categoria: 'Camisetas',
-  sexo: 'Unisex', pro_descuento: '0', talla: 'M', precio: '', stock: '0',
+  sexo: 'unisex', precio: 0, estiloId: 1, imagenUrl: '',
+  descuento: 0, descuentoInicio: '', descuentoFin: ''
+};
+
+// Mapa nombre legible → CatId relacional (índice 1-based de la lista CATEGORIAS)
+const catIdFromNombre = (nombre: string): number => CATEGORIAS.indexOf(nombre) + 1;
+
+// Mapa valor sexo almacenado en Product → value del selector
+const sexoToValue = (sexo: string): string => {
+  const s = (sexo ?? '').toLowerCase();
+  if (s === 'mujer' || s === 'femenino') return 'femenino';
+  if (s === 'hombre' || s === 'masculino') return 'masculino';
+  return 'unisex';
 };
 
 export function AdminProducts() {
-  const [products, setProducts] = useState<Producto[]>(EMPTY_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
   const [search,   setSearch]   = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [editing,  setEditing]  = useState<Producto | null>(null);
+  const [editing,  setEditing]  = useState<Product | null>(null);
   const [form,     setForm]     = useState<FormData>(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
+
+  const sincronizarInventario = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getProductos();
+      setProducts(data ?? []);
+    } catch (err) {
+      console.error('❌ Error cargando productos:', err);
+      setError('No se pudo cargar el inventario. Verifica tu sesión.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { sincronizarInventario(); }, []);
 
   const filtered = products.filter((p) =>
-    p.pro_nombre.toLowerCase().includes(search.toLowerCase()) ||
-    p.categoria.toLowerCase().includes(search.toLowerCase())
+    (p.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    String(p.categoria ?? '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const openAdd = () => { setForm(EMPTY_FORM); setEditing(null); setShowForm(true); };
-  const openEdit = (p: Producto) => {
+  const openAdd = () => { setForm(EMPTY_FORM); setEditing(null); setError(null); setShowForm(true); };
+
+  const openEdit = (p: Product) => {
     setEditing(p);
-    setForm({ pro_nombre: p.pro_nombre, pro_descripcion: '', categoria: p.categoria, sexo: p.sexo, pro_descuento: String(p.pro_descuento), talla: 'M', precio: '', stock: '0' });
+    setError(null);
+
+    // Intentamos resolver el nombre de categoría desde el valor almacenado
+    let catNombre = 'Camisetas';
+    if (typeof p.categoria === 'number') {
+      catNombre = CATEGORIAS[p.categoria - 1] ?? 'Camisetas';
+    } else if (typeof p.categoria === 'string' && p.categoria.trim() !== '') {
+      // El backend puede devolver el nombre directamente
+      const match = CATEGORIAS.find(c => c.toLowerCase() === p.categoria?.toString().toLowerCase());
+      catNombre = match ?? 'Camisetas';
+    }
+
+    setForm({
+      pro_nombre:       p.name,
+      pro_descripcion:  'Prenda Wayback Original',
+      categoria:        catNombre,
+      sexo:             sexoToValue(p.sexo),
+      precio:           p.price,
+      estiloId:         1,
+      imagenUrl:        p.image,
+      descuento:        0,
+      descuentoInicio:  '',
+      descuentoFin:     '',
+    });
     setShowForm(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) {
-      setProducts((prev) => prev.map((p) => p.pro_id === editing.pro_id ? { ...p, pro_nombre: form.pro_nombre, categoria: form.categoria, sexo: form.sexo, pro_descuento: Number(form.pro_descuento) } : p));
-    } else {
-      const newProd: Producto = {
-        pro_id: Date.now(),
-        pro_nombre: form.pro_nombre,
-        categoria: form.categoria,
-        sexo: form.sexo,
-        pro_descuento: Number(form.pro_descuento),
-        pro_fecha_creacion: new Date().toLocaleDateString('es-PE'),
-      };
-      setProducts((prev) => [newProd, ...prev]);
+    setSaving(true);
+    setError(null);
+
+    // ✅ PAYLOAD exacto que acepta AdminUpsertProductosDTO del backend .NET
+    const payload: Record<string, unknown> = {
+      ProNombre:      form.pro_nombre.trim(),
+      ProDescripcion: form.pro_descripcion.trim() || undefined,
+      ProGenero:      form.sexo,                          // 'masculino'|'femenino'|'unisex'
+      CatId:          catIdFromNombre(form.categoria),    // int requerido
+      EstId:          Number(form.estiloId) || undefined, // int? opcional
+      ProPrecio:      Number(form.precio),                // decimal requerido ≥ 0.10
+      ProDescuento:   form.descuento > 0 ? form.descuento : undefined,
+      ProDescuentoInicio: form.descuentoInicio || undefined,
+      ProDescuentoFin:    form.descuentoFin    || undefined,
+    };
+
+    // Incluimos la URL de imagen solo si se proporcionó (el endpoint puede aceptarla extra)
+    if (form.imagenUrl.trim()) {
+      payload['ImagenesUrl'] = [form.imagenUrl.trim()];
     }
-    setShowForm(false);
+
+    // En edición incluimos el id para que el controlador haga UPDATE
+    if (editing) {
+      payload['ProId'] = Number(editing.id);
+    }
+
+    try {
+      if (editing) {
+        await fetchJson(`${API_BASE}/api/admin/reportes/productos/${editing.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetchJson(`${API_BASE}/api/admin/reportes/productos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+      setShowForm(false);
+      await sincronizarInventario();
+    } catch (err: any) {
+      console.error('❌ Error guardando producto:', err);
+      setError(err?.message ?? 'Error al guardar. Verifica los datos e inténtalo de nuevo.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = (id: number) => {
-    setProducts((prev) => prev.filter((p) => p.pro_id !== id));
-    setDeleteId(null);
+  const handleDelete = async (id: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await fetchJson(`${API_BASE}/api/admin/reportes/productos/${id}`, { method: 'DELETE' });
+      setDeleteId(null);
+      await sincronizarInventario();
+    } catch (err: any) {
+      console.error('❌ Error eliminando producto:', err);
+      setError(err?.message ?? 'No se pudo eliminar el artículo.');
+      setLoading(false);
+    }
   };
-
-  const f = (k: keyof FormData, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   return (
     <div>
-      {/* header */}
+      {/* Cabecera */}
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', marginBottom: 4 }}>Productos</h1>
-          <p style={{ fontSize: 13, color: '#9ca3af' }}>{products.length} productos registrados</p>
+          <p style={{ fontSize: 13, color: '#9ca3af' }}>{products.length} prendas en base de datos</p>
         </div>
         <button
           onClick={openAdd}
           className="flex items-center gap-2 px-4 py-2.5 text-white transition-colors"
           style={{ background: '#7c3aed', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#6d28d9'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#7c3aed'; }}
         >
-          <Plus style={{ width: 14, height: 14 }} />
-          Agregar
+          <Plus style={{ width: 14, height: 14 }} /> Agregar Prenda
         </button>
       </div>
 
-      {/* search */}
+      {/* Banner de error global */}
+      {error && !showForm && (
+        <div className="flex items-center gap-3 mb-4 px-4 py-3" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4 }}>
+          <span style={{ fontSize: 13, color: '#b91c1c', flex: 1 }}>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600"><X style={{ width: 14, height: 14 }} /></button>
+        </div>
+      )}
+
+      {/* Buscador */}
       <div className="flex items-center gap-3 bg-white px-4 py-2.5 mb-5" style={{ border: '1px solid #f0f0f0', maxWidth: 380 }}>
         <Search style={{ width: 15, height: 15, color: '#9ca3af', flexShrink: 0 }} />
         <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar producto..."
-          className="flex-1 outline-none bg-transparent text-gray-700 placeholder-gray-300"
+          type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar producto por nombre..." className="flex-1 outline-none bg-transparent text-gray-700 placeholder-gray-300"
           style={{ fontSize: 13 }}
         />
       </div>
 
-      {/* table */}
+      {/* Tabla */}
       <div className="bg-white" style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-        {filtered.length === 0 ? (
+        {loading && products.length === 0 ? (
+          <p className="p-8 text-center text-sm text-gray-400 animate-pulse">Cargando inventario...</p>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-16">
-            <p style={{ fontSize: 14, color: '#9ca3af', marginBottom: 6 }}>
-              {search ? `Sin resultados para "${search}"` : 'No hay productos registrados'}
-            </p>
-            <p style={{ fontSize: 12, color: '#d1d5db' }}>
-              {!search && 'Agrega el primer producto con el botón de arriba'}
-            </p>
+            <p style={{ fontSize: 14, color: '#9ca3af' }}>No se encontraron registros activos</p>
           </div>
         ) : (
-          <table className="w-full">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                {['ID','Nombre','Categoría','Género','Descuento','Creado','Acciones'].map((h) => (
-                  <th key={h} className="text-left px-5 py-3" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#9ca3af', textTransform: 'uppercase' }}>{h}</th>
+              <tr style={{ borderBottom: '1px solid #f3f4f6', background: '#fafafa' }}>
+                {['Id', 'Nombre', 'Categoría', 'Precio', 'Acciones'].map((h) => (
+                  <th key={h} className="px-5 py-3 text-gray-400 font-bold" style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((p) => (
-                <tr key={p.pro_id} className="hover:bg-gray-50 transition-colors" style={{ borderBottom: '1px solid #f9f9f9' }}>
-                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#9ca3af' }}>#{p.pro_id}</td>
-                  <td className="px-5 py-3.5" style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{p.pro_nombre}</td>
-                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#374151' }}>{p.categoria}</td>
-                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#374151' }}>{p.sexo}</td>
+                <tr key={p.id} className="hover:bg-gray-50/50 transition-colors" style={{ borderBottom: '1px solid #f9f9f9' }}>
+                  <td className="px-5 py-3.5 font-mono" style={{ fontSize: 12, color: '#9ca3af' }}>#{p.id}</td>
+                  <td className="px-5 py-3.5" style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{p.name}</td>
+                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#374151' }}>{p.categoria || 'Sin categoría'}</td>
+                  <td className="px-5 py-3.5 font-bold" style={{ fontSize: 13, color: '#111' }}>S/ {p.price.toFixed(2)}</td>
                   <td className="px-5 py-3.5">
-                    {p.pro_descuento > 0 ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', background: 'rgba(124,58,237,0.08)', padding: '2px 8px' }}>
-                        -{p.pro_descuento}%
-                      </span>
-                    ) : <span style={{ fontSize: 12, color: '#d1d5db' }}>—</span>}
-                  </td>
-                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#9ca3af' }}>{p.pro_fecha_creacion}</td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-[#7c3aed] hover:bg-[rgba(124,58,237,0.05)] transition-colors">
+                    <div className="flex items-center gap-3">
+                      <button type="button" title="Variantes (próximamente)" className="p-1 text-gray-300 cursor-not-allowed">
+                        <Eye style={{ width: 14, height: 14 }} />
+                      </button>
+                      <button onClick={() => openEdit(p)} className="p-1 text-gray-400 hover:text-[#7c3aed] transition-colors" title="Editar">
                         <Edit2 style={{ width: 13, height: 13 }} />
                       </button>
-                      <button onClick={() => setDeleteId(p.pro_id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                      <button onClick={() => setDeleteId(p.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors" title="Eliminar">
                         <Trash2 style={{ width: 13, height: 13 }} />
                       </button>
                     </div>
@@ -162,70 +252,128 @@ export function AdminProducts() {
         )}
       </div>
 
-      {/* Add/Edit form modal */}
+      {/* ── MODAL FORMULARIO ── */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowForm(false)} />
-          <div
-            className="relative z-10 bg-white w-full overflow-y-auto"
-            style={{ maxWidth: 520, maxHeight: '90vh', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}
-          >
+          <div className="absolute inset-0 bg-black/40" onClick={() => !saving && setShowForm(false)} />
+          <div className="relative z-10 bg-white w-full max-w-[540px] overflow-y-auto" style={{ maxHeight: '90vh', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+
+            {/* Header */}
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #f3f4f6' }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{editing ? 'Editar producto' : 'Nuevo producto'}</h3>
-              <button onClick={() => setShowForm(false)} className="text-gray-300 hover:text-gray-600 transition-colors">
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{editing ? 'Editar prenda' : 'Nueva prenda'}</h3>
+              <button onClick={() => !saving && setShowForm(false)} className="text-gray-300 hover:text-gray-600" disabled={saving}>
                 <X style={{ width: 16, height: 16 }} />
               </button>
             </div>
+
+            {/* Error en modal */}
+            {error && (
+              <div className="mx-6 mt-4 px-4 py-3" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4 }}>
+                <p style={{ fontSize: 12, color: '#b91c1c' }}>{error}</p>
+              </div>
+            )}
+
             <form onSubmit={handleSave} className="p-6 flex flex-col gap-4">
-              <Field label="Nombre del producto">
-                <input type="text" required value={form.pro_nombre} onChange={(e) => f('pro_nombre', e.target.value)} placeholder="Ej: Camiseta oversized blanca" className="form-input" />
+
+              <Field label="Nombre del producto *">
+                <input
+                  type="text" required value={form.pro_nombre}
+                  onChange={(e) => setForm({...form, pro_nombre: e.target.value})}
+                  className="form-input" maxLength={100}
+                />
               </Field>
+
               <Field label="Descripción">
-                <textarea value={form.pro_descripcion} onChange={(e) => f('pro_descripcion', e.target.value)} rows={3} placeholder="Descripción del producto..." className="form-input resize-none" />
+                <input
+                  type="text" value={form.pro_descripcion}
+                  onChange={(e) => setForm({...form, pro_descripcion: e.target.value})}
+                  className="form-input" maxLength={500}
+                />
               </Field>
+
+              <Field label="URL de Imagen">
+                <input
+                  type="text" value={form.imagenUrl}
+                  onChange={(e) => setForm({...form, imagenUrl: e.target.value})}
+                  className="form-input" placeholder="https://..."
+                />
+              </Field>
+
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Categoría">
-                  <div className="relative">
-                    <select value={form.categoria} onChange={(e) => f('categoria', e.target.value)} className="form-input appearance-none w-full pr-8">
-                      {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
-                    </select>
-                    <ChevronDown style={{ width: 13, height: 13, position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
-                  </div>
+                <Field label="Categoría *">
+                  <select value={form.categoria} onChange={(e) => setForm({...form, categoria: e.target.value})} className="form-input w-full">
+                    {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </Field>
-                <Field label="Género">
-                  <div className="relative">
-                    <select value={form.sexo} onChange={(e) => f('sexo', e.target.value)} className="form-input appearance-none w-full pr-8">
-                      {SEXOS.map((s) => <option key={s}>{s}</option>)}
-                    </select>
-                    <ChevronDown style={{ width: 13, height: 13, position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
-                  </div>
+                <Field label="Estilo (EstId)">
+                  <input
+                    type="number" min="1" value={form.estiloId || ''}
+                    onChange={(e) => setForm({...form, estiloId: Number(e.target.value)})}
+                    className="form-input"
+                  />
                 </Field>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <Field label="Talla">
-                  <div className="relative">
-                    <select value={form.talla} onChange={(e) => f('talla', e.target.value)} className="form-input appearance-none w-full pr-8">
-                      {TALLAS.map((t) => <option key={t}>{t}</option>)}
-                    </select>
-                    <ChevronDown style={{ width: 13, height: 13, position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
-                  </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Género *">
+                  {/* ✅ Los values coinciden exactamente con el regex del backend */}
+                  <select value={form.sexo} onChange={(e) => setForm({...form, sexo: e.target.value})} className="form-input w-full">
+                    {SEXOS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
                 </Field>
-                <Field label="Precio (S/)">
-                  <input type="number" min="0" step="0.01" value={form.precio} onChange={(e) => f('precio', e.target.value)} placeholder="0.00" className="form-input" />
-                </Field>
-                <Field label="Descuento (%)">
-                  <input type="number" min="0" max="100" value={form.pro_descuento} onChange={(e) => f('pro_descuento', e.target.value)} placeholder="0" className="form-input" />
+                <Field label="Precio (S/) *">
+                  <input
+                    type="number" required min="0.10" step="0.01" value={form.precio || ''}
+                    onChange={(e) => setForm({...form, precio: Number(e.target.value)})}
+                    className="form-input"
+                  />
                 </Field>
               </div>
-              <Field label="Stock">
-                <input type="number" min="0" value={form.stock} onChange={(e) => f('stock', e.target.value)} placeholder="0" className="form-input" />
-              </Field>
+
+              {/* Descuento (opcional) */}
+              <details>
+                <summary style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: '#6b7280', textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none' }}>
+                  Descuento (opcional)
+                </summary>
+                <div className="grid grid-cols-3 gap-4 mt-3">
+                  <Field label="% Descuento">
+                    <input
+                      type="number" min="0" max="100" value={form.descuento || ''}
+                      onChange={(e) => setForm({...form, descuento: Number(e.target.value)})}
+                      className="form-input"
+                    />
+                  </Field>
+                  <Field label="Inicio">
+                    <input
+                      type="datetime-local" value={form.descuentoInicio}
+                      onChange={(e) => setForm({...form, descuentoInicio: e.target.value ? new Date(e.target.value).toISOString() : ''})}
+                      className="form-input"
+                    />
+                  </Field>
+                  <Field label="Fin">
+                    <input
+                      type="datetime-local" value={form.descuentoFin}
+                      onChange={(e) => setForm({...form, descuentoFin: e.target.value ? new Date(e.target.value).toISOString() : ''})}
+                      className="form-input"
+                    />
+                  </Field>
+                </div>
+              </details>
+
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 hover:border-gray-400 transition-colors" style={{ fontSize: 12, fontWeight: 600 }}>
+                <button
+                  type="button" onClick={() => setShowForm(false)} disabled={saving}
+                  className="flex-1 py-2.5 border border-gray-200 text-gray-600"
+                  style={{ opacity: saving ? 0.5 : 1 }}
+                >
                   Cancelar
                 </button>
-                <button type="submit" className="flex-1 py-2.5 text-white transition-colors" style={{ background: '#7c3aed', fontSize: 12, fontWeight: 700 }}>
-                  {editing ? 'Guardar cambios' : 'Crear producto'}
+                <button
+                  type="submit" disabled={saving}
+                  className="flex-1 py-2.5 text-white"
+                  style={{ background: saving ? '#a78bfa' : '#7c3aed' }}
+                >
+                  {saving ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
             </form>
@@ -233,22 +381,32 @@ export function AdminProducts() {
         </div>
       )}
 
-      {/* delete confirm */}
+      {/* ── MODAL ELIMINAR ── */}
       {deleteId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteId(null)} />
-          <div className="relative z-10 bg-white p-6" style={{ maxWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111', marginBottom: 8 }}>¿Eliminar producto?</h3>
-            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>Esta acción no se puede deshacer.</p>
+          <div className="relative z-10 bg-white p-6 max-w-[360px]" style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111', marginBottom: 8 }}>¿Eliminar artículo?</h3>
+            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>Esta acción es permanente y eliminará el producto del servidor.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 hover:border-gray-400 transition-colors" style={{ fontSize: 12, fontWeight: 600 }}>Cancelar</button>
-              <button onClick={() => handleDelete(deleteId)} className="flex-1 py-2.5 bg-red-500 text-white hover:bg-red-600 transition-colors" style={{ fontSize: 12, fontWeight: 700 }}>Eliminar</button>
+              <button onClick={() => setDeleteId(null)} className="flex-1 py-2.5 border border-gray-200 text-gray-600">Cancelar</button>
+              <button onClick={() => handleDelete(deleteId)} className="flex-1 py-2.5 bg-red-500 text-white font-bold" disabled={loading}>
+                {loading ? 'Eliminando...' : 'Eliminar'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      <style>{`.form-input { width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; background: #fafafa; font-size: 13px; color: #111; outline: none; } .form-input:focus { border-color: #7c3aed; background: #fff; }`}</style>
+      <style>{`
+        .form-input {
+          width: 100%; padding: 8px 12px;
+          border: 1px solid #e5e7eb; background: #fafafa;
+          font-size: 13px; color: #111; outline: none;
+        }
+        .form-input:focus { border-color: #7c3aed; background: #fff; }
+        details > summary::-webkit-details-marker { display: none; }
+      `}</style>
     </div>
   );
 }

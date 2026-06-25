@@ -1,101 +1,129 @@
 import { useState, useEffect } from 'react';
-import { Search, Edit2, Trash2, X, Plus } from 'lucide-react';
-import { getClientes } from '../../../lib/api';
+import { Search, Edit2, Trash2, X } from 'lucide-react';
+import { getClientes, updateCliente, deleteCliente } from '@/lib/api';
 
 interface Cliente {
   cli_id: number;
   cli_nombre: string;
   cli_apellido: string;
   cli_email: string;
-  cli_telefono: string;
   cli_documento_tipo: string;
   cli_documento: string;
   cli_fecha_registro: string;
 }
 
-const EMPTY_CLIENTS: Cliente[] = [];
-
 const EMPTY_FORM = {
-  cli_nombre: '', cli_apellido: '', cli_email: '',
-  cli_telefono: '', cli_documento_tipo: 'DNI', cli_documento: '',
+  cli_nombre:         '',
+  cli_apellido:       '',
+  cli_email:          '',
+  cli_documento_tipo: 'DNI',
+  cli_documento:      '',
 };
 
 export function AdminClients() {
-  const [clients,   setClients]   = useState<Cliente[]>(EMPTY_CLIENTS);
-  const [search,    setSearch]    = useState('');
-  const [showForm,  setShowForm]  = useState(false);
-  const [editing,   setEditing]   = useState<Cliente | null>(null);
-  const [form,      setForm]      = useState(EMPTY_FORM);
-  const [deleteId,  setDeleteId]  = useState<number | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState<string | null>(null);
+  const [clients,  setClients]  = useState<Cliente[]>([]);
+  const [search,   setSearch]   = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editing,  setEditing]  = useState<Cliente | null>(null);
+  const [form,     setForm]     = useState(EMPTY_FORM);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
 
   const filtered = clients.filter((c) =>
     `${c.cli_nombre} ${c.cli_apellido} ${c.cli_email}`.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setShowForm(true); };
+  const loadClients = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getClientes();
+      setClients(data ?? []);
+    } catch (err) {
+      console.error('❌ Error cargando clientes:', err);
+      setError('No se pudieron cargar los clientes. Verifica que hayas iniciado sesión como Administrador.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadClients(); }, []);
+
+  // Solo se abre en modo edición — no existe modo "crear"
   const openEdit = (c: Cliente) => {
     setEditing(c);
-    setForm({ cli_nombre: c.cli_nombre, cli_apellido: c.cli_apellido, cli_email: c.cli_email, cli_telefono: c.cli_telefono, cli_documento_tipo: c.cli_documento_tipo, cli_documento: c.cli_documento });
+    setForm({
+      cli_nombre:         c.cli_nombre,
+      cli_apellido:       c.cli_apellido,
+      cli_email:          c.cli_email,
+      cli_documento_tipo: c.cli_documento_tipo,
+      cli_documento:      c.cli_documento,
+    });
+    setError(null);
     setShowForm(true);
   };
 
-  useEffect(() => {
-    let active = true;
-    getClientes()
-      .then((remote) => {
-        if (!active) return;
-        setClients(remote);
-        setError(null);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setError('No se pudo cargar los clientes desde el backend.');
-        console.error(err);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => { active = false; };
-  }, []);
-
-  const handleSave = (e: React.FormEvent) => {
+  // ✅ handleSave solo ejecuta PUT — no hay rama POST
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) {
-      setClients((prev) => prev.map((c) => c.cli_id === editing.cli_id ? { ...c, ...form } : c));
-    } else {
-      setClients((prev) => [...prev, { cli_id: Date.now(), ...form, cli_fecha_registro: new Date().toLocaleDateString('es-PE') }]);
+    if (!editing) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updateCliente(editing.cli_id, {
+        cli_nombre:   form.cli_nombre,
+        cli_apellido: form.cli_apellido,
+        cli_email:    form.cli_email,
+      });
+      setShowForm(false);
+      await loadClients();
+    } catch (err) {
+      console.error('❌ Error editando cliente:', err);
+      setError('Error al guardar los datos del cliente. Inténtalo de nuevo.');
+    } finally {
+      setSaving(false);
     }
-    setShowForm(false);
   };
 
-  const handleDelete = (id: number) => {
-    setClients((prev) => prev.filter((c) => c.cli_id !== id));
-    setDeleteId(null);
+  const handleDelete = async (id: number) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await deleteCliente(id);
+      setDeleteId(null);
+      await loadClients();
+    } catch (err) {
+      console.error('❌ Error eliminando cliente:', err);
+      setError('No se pudo eliminar el cliente del servidor.');
+      setDeleteId(null);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const f = (k: keyof typeof EMPTY_FORM, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   return (
     <div>
+      {/* Cabecera — sin botón Agregar */}
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', marginBottom: 4 }}>Clientes</h1>
           <p style={{ fontSize: 13, color: '#9ca3af' }}>{clients.length} clientes registrados</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2.5 text-white"
-          style={{ background: '#7c3aed', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#6d28d9'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#7c3aed'; }}
-        >
-          <Plus style={{ width: 14, height: 14 }} /> Agregar
-        </button>
       </div>
 
-      {/* search */}
+      {/* Error global */}
+      {error && !showForm && deleteId === null && (
+        <div className="flex items-center gap-3 mb-4 px-4 py-3" style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
+          <span style={{ fontSize: 13, color: '#b91c1c', flex: 1 }}>{error}</span>
+          <button onClick={() => setError(null)}><X style={{ width: 14, height: 14, color: '#b91c1c' }} /></button>
+        </div>
+      )}
+
+      {/* Buscador */}
       <div className="flex items-center gap-3 bg-white px-4 py-2.5 mb-5" style={{ border: '1px solid #f0f0f0', maxWidth: 380 }}>
         <Search style={{ width: 15, height: 15, color: '#9ca3af', flexShrink: 0 }} />
         <input
@@ -105,31 +133,23 @@ export function AdminClients() {
         />
       </div>
 
-      {/* table */}
+      {/* Tabla */}
       <div className="bg-white" style={{ border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-        {error ? (
-          <div className="px-5 py-4 text-sm text-red-600" style={{ background: '#fff1f2' }}>
-            {error}
-          </div>
-        ) : null}
         {loading ? (
           <div className="text-center py-16">
-            <p style={{ fontSize: 14, color: '#9ca3af' }}>Cargando clientes...</p>
+            <p className="animate-pulse" style={{ fontSize: 14, color: '#9ca3af' }}>Sincronizando con el servidor...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
-            <p style={{ fontSize: 14, color: '#9ca3af', marginBottom: 6 }}>
+            <p style={{ fontSize: 14, color: '#9ca3af' }}>
               {search ? `Sin resultados para "${search}"` : 'No hay clientes registrados'}
-            </p>
-            <p style={{ fontSize: 12, color: '#d1d5db' }}>
-              {!search && 'Los clientes aparecerán aquí al registrarse'}
             </p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-                {['ID','Nombre','Email','Teléfono','Documento','Registrado','Acciones'].map((h) => (
+                {['ID', 'Nombre', 'Email', 'Documento', 'Registrado', 'Acciones'].map((h) => (
                   <th key={h} className="text-left px-5 py-3" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#9ca3af', textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
@@ -140,15 +160,19 @@ export function AdminClients() {
                   <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#9ca3af' }}>#{c.cli_id}</td>
                   <td className="px-5 py-3.5" style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{c.cli_nombre} {c.cli_apellido}</td>
                   <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#374151' }}>{c.cli_email}</td>
-                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#374151' }}>{c.cli_telefono || '—'}</td>
-                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#374151' }}>{c.cli_documento_tipo} {c.cli_documento}</td>
-                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#9ca3af' }}>{c.cli_fecha_registro}</td>
+                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#374151' }}>
+                    <span className="bg-gray-100 text-gray-600 px-1 py-0.5 rounded text-[10px] font-bold mr-1">{c.cli_documento_tipo}</span>
+                    {c.cli_documento}
+                  </td>
+                  <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#9ca3af' }}>
+                    {c.cli_fecha_registro ? new Date(c.cli_fecha_registro).toLocaleDateString('es-PE') : '—'}
+                  </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(c)} className="p-1.5 text-gray-300 hover:text-[#7c3aed] transition-colors">
+                      <button onClick={() => openEdit(c)} className="p-1.5 text-gray-300 hover:text-[#7c3aed] transition-colors" title="Editar">
                         <Edit2 style={{ width: 13, height: 13 }} />
                       </button>
-                      <button onClick={() => setDeleteId(c.cli_id)} className="p-1.5 text-gray-300 hover:text-red-500 transition-colors">
+                      <button onClick={() => setDeleteId(c.cli_id)} className="p-1.5 text-gray-300 hover:text-red-500 transition-colors" title="Eliminar">
                         <Trash2 style={{ width: 13, height: 13 }} />
                       </button>
                     </div>
@@ -160,48 +184,95 @@ export function AdminClients() {
         )}
       </div>
 
-      {/* form modal */}
-      {showForm && (
+      {/* Modal editar */}
+      {showForm && editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowForm(false)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => !saving && setShowForm(false)} />
           <div className="relative z-10 bg-white w-full overflow-y-auto" style={{ maxWidth: 480, maxHeight: '90vh', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #f3f4f6' }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{editing ? 'Editar cliente' : 'Nuevo cliente'}</h3>
-              <button onClick={() => setShowForm(false)} className="text-gray-300 hover:text-gray-600 transition-colors"><X style={{ width: 16, height: 16 }} /></button>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>Editar cliente</h3>
+              <button onClick={() => !saving && setShowForm(false)} className="text-gray-300 hover:text-gray-600 transition-colors" disabled={saving}>
+                <X style={{ width: 16, height: 16 }} />
+              </button>
             </div>
+
+            {error && (
+              <div className="mx-6 mt-4 px-4 py-3" style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
+                <p style={{ fontSize: 12, color: '#b91c1c' }}>{error}</p>
+              </div>
+            )}
+
             <form onSubmit={handleSave} className="p-6 flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
-                <FormField label="Nombre"><input required type="text" value={form.cli_nombre} onChange={(e) => f('cli_nombre', e.target.value)} placeholder="Juan" className="fi" /></FormField>
-                <FormField label="Apellido"><input required type="text" value={form.cli_apellido} onChange={(e) => f('cli_apellido', e.target.value)} placeholder="García" className="fi" /></FormField>
-              </div>
-              <FormField label="Email"><input required type="email" value={form.cli_email} onChange={(e) => f('cli_email', e.target.value)} placeholder="juan@correo.com" className="fi" /></FormField>
-              <FormField label="Teléfono"><input type="tel" value={form.cli_telefono} onChange={(e) => f('cli_telefono', e.target.value)} placeholder="999 888 777" className="fi" /></FormField>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Tipo documento">
-                  <select value={form.cli_documento_tipo} onChange={(e) => f('cli_documento_tipo', e.target.value)} className="fi w-full">
-                    {['DNI','RUC','Pasaporte','CE'].map((t) => <option key={t}>{t}</option>)}
-                  </select>
+                <FormField label="Nombre">
+                  <input required type="text" value={form.cli_nombre}
+                    onChange={(e) => f('cli_nombre', e.target.value)}
+                    placeholder="Juan" className="fi" disabled={saving} />
                 </FormField>
-                <FormField label="Número"><input type="text" value={form.cli_documento} onChange={(e) => f('cli_documento', e.target.value)} placeholder="12345678" className="fi" /></FormField>
+                <FormField label="Apellido">
+                  <input required type="text" value={form.cli_apellido}
+                    onChange={(e) => f('cli_apellido', e.target.value)}
+                    placeholder="García" className="fi" disabled={saving} />
+                </FormField>
               </div>
+
+              <FormField label="Email">
+                <input required type="email" value={form.cli_email}
+                  onChange={(e) => f('cli_email', e.target.value)}
+                  placeholder="juan@correo.com" className="fi" disabled={saving} />
+              </FormField>
+
+              {/* Documento: siempre solo-lectura en edición */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Tipo documento (no editable)">
+                  <div className="fi" style={{ background: '#f3f4f6', color: '#9ca3af', cursor: 'not-allowed' }}>
+                    {form.cli_documento_tipo}
+                  </div>
+                </FormField>
+                <FormField label="Número (no editable)">
+                  <input type="text" value={form.cli_documento} readOnly className="fi"
+                    style={{ background: '#f3f4f6', color: '#9ca3af', cursor: 'not-allowed' }} />
+                </FormField>
+              </div>
+              <p style={{ fontSize: 11, color: '#9ca3af', marginTop: -8 }}>
+                * El tipo y número de documento no pueden modificarse una vez registrados.
+              </p>
+
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600" style={{ fontSize: 12 }}>Cancelar</button>
-                <button type="submit" className="flex-1 py-2.5 text-white" style={{ background: '#7c3aed', fontSize: 12, fontWeight: 700 }}>{editing ? 'Guardar' : 'Crear'}</button>
+                <button type="button" onClick={() => setShowForm(false)} disabled={saving}
+                  className="flex-1 py-2.5 border border-gray-200 text-gray-600"
+                  style={{ fontSize: 12, opacity: saving ? 0.5 : 1 }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 py-2.5 text-white"
+                  style={{ background: saving ? '#a78bfa' : '#7c3aed', fontSize: 12, fontWeight: 700 }}>
+                  {saving ? 'Guardando...' : 'Guardar'}
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
+      {/* Modal eliminar */}
       {deleteId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteId(null)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => !saving && setDeleteId(null)} />
           <div className="relative z-10 bg-white p-6" style={{ maxWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111', marginBottom: 8 }}>¿Eliminar cliente?</h3>
-            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>Se eliminarán también sus pedidos y datos asociados.</p>
+            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>Se eliminarán también sus pedidos y datos asociados del servidor.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 py-2.5 border border-gray-200 text-gray-600" style={{ fontSize: 12 }}>Cancelar</button>
-              <button onClick={() => handleDelete(deleteId)} className="flex-1 py-2.5 bg-red-500 text-white hover:bg-red-600 transition-colors" style={{ fontSize: 12, fontWeight: 700 }}>Eliminar</button>
+              <button onClick={() => setDeleteId(null)} disabled={saving}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600"
+                style={{ fontSize: 12, opacity: saving ? 0.5 : 1 }}>
+                Cancelar
+              </button>
+              <button onClick={() => handleDelete(deleteId)} disabled={saving}
+                className="flex-1 py-2.5 bg-red-500 text-white hover:bg-red-600 transition-colors"
+                style={{ fontSize: 12, fontWeight: 700 }}>
+                {saving ? 'Eliminando...' : 'Eliminar'}
+              </button>
             </div>
           </div>
         </div>

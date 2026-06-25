@@ -1,3 +1,4 @@
+import { Header } from '../components/Header'; // 🚨 REGLA ADD: Importamos el Header real
 import { ImageCarousel } from '../components/ImageCarousel';
 
 const TICKER_ITEMS = [
@@ -23,6 +24,8 @@ function ProductSlot() {
 export function HomePage() {
   return (
     <div className="bg-white">
+      
+
       {/* ── Hero Carousel ── */}
       <ImageCarousel />
 
@@ -99,7 +102,7 @@ export function HomePage() {
         style={{ height: '50vh', minHeight: 300, background: '#111', position: 'relative' }}
       >
         <img
-          src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=1600&q=85"
+          src="https://i.pinimg.com/1200x/a6/9e/2a/a69e2abb318ccc05b70ba52f5c61dbd2.jpg"
           alt="Wayback editorial"
           className="w-full h-full object-cover"
           style={{ opacity: 0.55 }}

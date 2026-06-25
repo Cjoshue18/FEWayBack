@@ -3,18 +3,21 @@ import { Link, useNavigate } from 'react-router';
 import { Search, ShoppingBag, User, Heart, Menu, X, LayoutDashboard, LogOut } from 'lucide-react';
 import { CategoryMenu } from './CategoryMenu';
 import { SearchOverlay } from './SearchOverlay';
-import { LoginModal } from './LoginModal';
 import { useAuth } from '../context/AuthContext';
 
-export function Header() {
+// 🔑 DEFINIMOS LAS PROPS QUE EL CONTROLADOR GLOBAL LE PASARÁ AL HEADER
+interface HeaderProps {
+  onOpenLogin: () => void;
+}
+
+export function Header({ onOpenLogin }: HeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [isMobileMenuOpen,   setIsMobileMenuOpen]   = useState(false);
-  const [isSearchOpen,       setIsSearchOpen]        = useState(false);
-  const [isLoginOpen,        setIsLoginOpen]         = useState(false);
-  const [isUserMenuOpen,     setIsUserMenuOpen]      = useState(false);
+  const [isSearchOpen,       setIsSearchOpen]       = useState(false);
+  const [isUserMenuOpen,     setIsUserMenuOpen]     = useState(false);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -29,7 +32,8 @@ export function Header() {
   }, []);
 
   const handleUserClick = () => {
-    if (!user) { setIsLoginOpen(true); return; }
+    // 🛠️ Cambiado: En lugar de abrir un estado local, dispara el modal global controlado por el Layout
+    if (!user) { onOpenLogin(); return; }
     setIsUserMenuOpen((v) => !v);
   };
 
@@ -50,13 +54,13 @@ export function Header() {
               to="/"
               className="tracking-[0.22em] uppercase hover:opacity-90 transition-all"
               style={{
-              fontSize: 17,
-              fontWeight: 700,
-              letterSpacing: '0.25em',
-              color: '#7c3aed'
-            }}
-          > 
-            WAYBACK
+                fontSize: 17,
+                fontWeight: 700,
+                letterSpacing: '0.25em',
+                color: '#7c3aed'
+              }}
+            > 
+              WAYBACK
             </Link>
 
             {/* desktop icons */}
@@ -181,32 +185,35 @@ export function Header() {
             </button>
           </div>
 
-          {/* desktop nav */}
-          <nav className="hidden md:flex items-center gap-7" style={{ fontSize: 12, letterSpacing: '0.09em' }}>
-            <Link to="/" className="text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
-              Inicio
-            </Link>
-            <button
-              onClick={() => setIsCategoryMenuOpen((v) => !v)}
-              className="flex items-center gap-1 uppercase tracking-widest transition-colors"
-              style={{ color: isCategoryMenuOpen ? '#7c3aed' : '#6b7280' }}
-            >
-              Categorías
-              <span style={{ fontSize: 9, transform: isCategoryMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)', display: 'inline-block', transition: 'transform 0.2s' }}>▾</span>
-            </button>
-            <Link to="/contacto" className="text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
-              Contacto
-            </Link>
-          </nav>
+          {/* ── DESKTOP NAV OPTIMIZADO ── */}
+<nav className="hidden md:flex items-center gap-7" style={{ fontSize: 12, letterSpacing: '0.09em' }}>
+  <Link to="/" className="text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
+    Inicio
+  </Link>
+  
+  <Link to="/catalogo" className="text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
+    Catálogo
+  </Link>
+
+  
+  <Link to="/contacto" className="text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
+    Contacto
+  </Link>
+</nav>
 
           {/* mobile nav */}
-          {isMobileMenuOpen && (
-            <nav className="md:hidden mt-4 pb-4 flex flex-col gap-5 border-t border-gray-100 pt-4" style={{ fontSize: 13 }}>
-              <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-gray-700 tracking-widest uppercase">Inicio</Link>
-              <button
-                onClick={() => { setIsCategoryMenuOpen((v) => !v); setIsMobileMenuOpen(false); }}
-                className="text-gray-700 tracking-widest uppercase text-left"
-              >
+          {/* ── MOBILE NAV OPTIMIZADO ── */}
+{isMobileMenuOpen && (
+  <nav className="md:hidden mt-4 pb-4 flex flex-col gap-5 border-t border-gray-100 pt-4" style={{ fontSize: 13 }}>
+    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-gray-700 tracking-widest uppercase">Inicio</Link>
+    
+    {/* 🔑 NUEVO EN MOBILE */}
+    <Link to="/catalogo" onClick={() => setIsMobileMenuOpen(false)} className="text-gray-700 tracking-widest uppercase">Catálogo</Link>
+    
+    <button
+      onClick={() => { setIsCategoryMenuOpen((v) => !v); setIsMobileMenuOpen(false); }}
+      className="text-gray-700 tracking-widest uppercase text-left"
+    >
                 Categorías
               </button>
               <Link to="/contacto" onClick={() => setIsMobileMenuOpen(false)} className="text-gray-700 tracking-widest uppercase">Contacto</Link>
@@ -217,7 +224,8 @@ export function Header() {
                 <Search className="w-4 h-4" /> Buscar
               </button>
               {!user ? (
-                <button onClick={() => { setIsMobileMenuOpen(false); setIsLoginOpen(true); }} className="flex items-center gap-2 text-[#7c3aed] tracking-widest uppercase">
+                // 🛠️ Cambiado: Mobile también aprovecha la prop controlada
+                <button onClick={() => { setIsMobileMenuOpen(false); onOpenLogin(); }} className="flex items-center gap-2 text-[#7c3aed] tracking-widest uppercase">
                   <User className="w-4 h-4" /> Iniciar sesión
                 </button>
               ) : (
@@ -236,7 +244,7 @@ export function Header() {
       </header>
 
       <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+      {/* 🛡️ MODAL INTERNO RETIRADO: Ahora se gestiona puramente desde RootLayout.tsx */}
     </>
   );
 }
