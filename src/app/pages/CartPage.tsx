@@ -1,40 +1,59 @@
 import { useState } from 'react';
-import { ShoppingBag, Minus, Plus, Trash2, Tag, Truck, ShieldCheck } from 'lucide-react';
-
-interface CartItem {
-  id: number;
-  name: string;
-  price: number;
-  image: string;
-  size: string;
-  color: string;
-  quantity: number;
-  inStock: boolean;
-}
-
+import { toast } from 'sonner';
+import { ShoppingBag, Minus, Plus, Trash2, Tag, Truck, ShieldCheck, MapPin, RefreshCw, QrCode } from 'lucide-react';
+import { useCart } from '@/app/hooks/useCart';
+import { useDirecciones } from '@/app/hooks/useProfile';
+import { crearPedido } from '@/lib/api';
+import { Toaster } from '@/app/components/ui/sonner';
 
 export function CartPage() {
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const { items: cartItems, updateQuantity, removeItem, clearCart } = useCart();
+  const { direcciones, loading: direccionesLoading } = useDirecciones();
   const [couponCode, setCouponCode] = useState('');
-    
-  const updateQuantity = (id: number, delta: number) => {
-    setCartItems(
-      cartItems.map((item) =>
-        item.id === id
-          ? { ...item, quantity: Math.max(1, item.quantity + delta) }
-          : item
-      )
-    );
-  };
 
-  const removeItem = (id: number) => {
-    setCartItems(cartItems.filter((item) => item.id !== id));
-  };
+  const [selectedDirId, setSelectedDirId] = useState<number | null>(null);
+  const [numeroYape, setNumeroYape] = useState('');
+  const [codigoAprobacion, setCodigoAprobacion] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = subtotal > 1500 ? 0 : 150;
   const discount = 0;
   const total = subtotal + shipping - discount;
+
+  // El backend exige VarId por ítem: si algo en el carrito no tiene variante asociada, no se puede facturar.
+  const itemsSinVariante = cartItems.some((item) => !item.varId);
+  const puedeConfirmar =
+    !submitting &&
+    cartItems.length > 0 &&
+    !itemsSinVariante &&
+    selectedDirId !== null &&
+    /^\d{1,9}$/.test(numeroYape) &&
+    /^\d{1,6}$/.test(codigoAprobacion);
+
+  const handleConfirmarPedido = async () => {
+    if (!puedeConfirmar || selectedDirId === null) return;
+    setSubmitting(true);
+
+    const result = await crearPedido({
+      dirId: selectedDirId,
+      NumeroYape: numeroYape,
+      CodigoAprobacion: codigoAprobacion,
+      Items: cartItems.map((item) => ({ VarId: item.varId as number, Cantidad: item.quantity })),
+    });
+
+    setSubmitting(false);
+
+    if (result.success) {
+      toast.success('¡Pedido confirmado! Te llegará la confirmación pronto.');
+      clearCart();
+      setNumeroYape('');
+      setCodigoAprobacion('');
+      setSelectedDirId(null);
+    } else {
+      toast.error(result.error ?? 'No se pudo confirmar el pedido.');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -75,7 +94,7 @@ export function CartPage() {
             <div className="lg:col-span-2 space-y-4">
               {cartItems.map((item) => (
                 <div
-                  key={item.id}
+                  key={item.cartKey}
                   className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)] hover:shadow-md transition-shadow"
                 >
                   <div className="flex gap-4">
@@ -100,7 +119,7 @@ export function CartPage() {
                           </p>
                         </div>
                         <button
-                          onClick={() => removeItem(item.id)}
+                          onClick={() => removeItem(item.cartKey)}
                           className="p-2 hover:bg-red-50 rounded-full transition-colors text-gray-400 hover:text-red-600"
                         >
                           <Trash2 className="w-5 h-5" />
@@ -111,7 +130,7 @@ export function CartPage() {
                         {/* Quantity Controls */}
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => updateQuantity(item.id, -1)}
+                            onClick={() => updateQuantity(item.cartKey, -1)}
                             className="w-8 h-8 rounded-full border border-[rgba(124,58,237,0.2)] flex items-center justify-center hover:bg-[rgba(124,58,237,0.05)] transition-colors"
                           >
                             <Minus className="w-4 h-4 text-[#7c3aed]" />
@@ -120,7 +139,7 @@ export function CartPage() {
                             {item.quantity}
                           </span>
                           <button
-                            onClick={() => updateQuantity(item.id, 1)}
+                            onClick={() => updateQuantity(item.cartKey, 1)}
                             className="w-8 h-8 rounded-full border border-[rgba(124,58,237,0.2)] flex items-center justify-center hover:bg-[rgba(124,58,237,0.05)] transition-colors"
                           >
                             <Plus className="w-4 h-4 text-[#7c3aed]" />
@@ -184,8 +203,104 @@ export function CartPage() {
               </div>
             </div>
 
-            {/* Order Summary */}
-            <div className="lg:col-span-1">
+            {/* Order Summary + Checkout */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* Dirección de envío */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-800 mb-4 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-[#7c3aed]" /> Dirección de envío
+                </h3>
+
+                {direccionesLoading ? (
+                  <p className="text-xs text-gray-400 flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Cargando direcciones…
+                  </p>
+                ) : direcciones.length === 0 ? (
+                  <p className="text-xs text-gray-400">
+                    No tienes direcciones guardadas. Agrega una desde tu perfil antes de continuar.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {direcciones.map((dir) => (
+                      <label
+                        key={dir.dirId}
+                        className="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors"
+                        style={{ borderColor: selectedDirId === dir.dirId ? '#7c3aed' : '#e5e7eb' }}
+                      >
+                        <input
+                          type="radio"
+                          name="direccionEnvio"
+                          checked={selectedDirId === dir.dirId}
+                          onChange={() => setSelectedDirId(dir.dirId)}
+                          className="mt-1 accent-[#7c3aed]"
+                        />
+                        <span className="text-sm text-gray-700">
+                          {dir.dirCalle}, {dir.dirDistrito} — {dir.dirProvincia}
+                          {dir.dirPreferido && (
+                            <span className="ml-2 text-[10px] font-bold uppercase text-[#7c3aed]">Preferida</span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Pago con Yape */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-800 mb-4">Pago con Yape</h3>
+
+                {/* Datos de la tienda + QR (validación manual, no es pasarela automática) */}
+                <div className="rounded-2xl p-5 mb-5 bg-[rgba(124,58,237,0.04)] border border-[rgba(124,58,237,0.15)] flex flex-col sm:flex-row gap-5 items-center">
+                  <div className="w-28 h-28 flex-shrink-0 rounded-xl border-2 border-dashed border-[#7c3aed]/40 bg-white flex flex-col items-center justify-center gap-1">
+                    <QrCode className="w-12 h-12 text-[#7c3aed]" strokeWidth={1.5} />
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">QR Yape</span>
+                  </div>
+
+                  <div className="flex-1 text-center sm:text-left">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Yapea a Wayback</p>
+                    <p className="text-2xl font-black text-[#7c3aed] tracking-tight mb-3">987,654,321</p>
+                    <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside text-left">
+                      <li>Escanea el QR o yapea al número de la tienda.</li>
+                      <li>Realiza la transferencia por el monto total.</li>
+                      <li>Ingresa tu número de celular y el código de aprobación de 6 dígitos emitido por Yape abajo para confirmar tu pedido.</li>
+                    </ol>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Número Yape</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={9}
+                      value={numeroYape}
+                      onChange={(e) => setNumeroYape(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                      placeholder="987654321"
+                      className="w-full px-4 py-2 border border-[rgba(124,58,237,0.2)] rounded-full focus:outline-none focus:border-[#7c3aed] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Código de aprobación</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={codigoAprobacion}
+                      onChange={(e) => setCodigoAprobacion(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="123456"
+                      className="w-full px-4 py-2 border border-[rgba(124,58,237,0.2)] rounded-full focus:outline-none focus:border-[#7c3aed] text-sm"
+                    />
+                  </div>
+                </div>
+                {itemsSinVariante && (
+                  <p className="text-xs text-red-500 mt-4">
+                    Algunos productos del carrito no tienen una variante válida (talla/color). Quítalos y agrégalos de nuevo desde el catálogo.
+                  </p>
+                )}
+              </div>
+
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)] sticky top-24">
                 <h3 className="text-lg font-semibold text-gray-800 mb-6">
                   Resumen de compra
@@ -243,9 +358,16 @@ export function CartPage() {
                 </div>
 
                 {/* Checkout Button */}
-                <button className="w-full py-4 bg-[#7c3aed] text-white rounded-full hover:bg-[#6d28d9] transition-colors font-semibold mb-3">
-                  Proceder al pago
+                <button
+                  onClick={handleConfirmarPedido}
+                  disabled={!puedeConfirmar}
+                  className="w-full py-4 bg-[#7c3aed] text-white rounded-full hover:bg-[#6d28d9] transition-colors font-semibold mb-3 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {submitting ? <><RefreshCw className="w-4 h-4 animate-spin" /> Confirmando…</> : 'Confirmar Pedido'}
                 </button>
+                {!selectedDirId && cartItems.length > 0 && (
+                  <p className="text-xs text-gray-400 text-center mb-3">Selecciona una dirección de envío para continuar.</p>
+                )}
 
                 {/* Continue Shopping */}
                 <a
@@ -278,6 +400,7 @@ export function CartPage() {
           </div>
         )}
       </div>
+      <Toaster />
     </div>
   );
 }

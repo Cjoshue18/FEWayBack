@@ -4,6 +4,8 @@ import { ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 interface FilterSidebarProps {
   filters: any;
   setFilters: (filters: any) => void;
+  // CategoryPage ya fija la categoría por la URL: ahí no aplica mostrar el filtro de "Prendas".
+  showCategorias?: boolean;
 }
 
 const CATEGORIAS_TIENDA = [
@@ -41,7 +43,7 @@ function Divider() {
   return <div style={{ height: 1, background: '#f3f4f6', margin: '4px 0' }} />;
 }
 
-export function FilterSidebar({ filters, setFilters }: FilterSidebarProps) {
+export function FilterSidebar({ filters, setFilters, showCategorias = true }: FilterSidebarProps) {
   const [expanded, setExpanded] = useState({ categorias: true, genero: true, color: true, talla: true, disponibilidad: true, precio: true });
   const toggle = (k: keyof typeof expanded) => setExpanded((p) => ({ ...p, [k]: !p[k] }));
 
@@ -62,11 +64,12 @@ export function FilterSidebar({ filters, setFilters }: FilterSidebarProps) {
     });
   };
 
+  // Género es de selección única: elegir otro reemplaza al anterior, no se acumulan.
   const toggleSexo = (s: string) => {
     const actuales: string[] = Array.isArray(filters.sexo) ? filters.sexo : [];
-    setFilters({ 
-      ...filters, 
-      sexo: actuales.includes(s) ? actuales.filter((x: string) => x !== s) : [...actuales, s] 
+    setFilters({
+      ...filters,
+      sexo: actuales.includes(s) ? [] : [s],
     });
   };
 
@@ -115,28 +118,32 @@ export function FilterSidebar({ filters, setFilters }: FilterSidebarProps) {
 
         <div className="flex flex-col" style={{ gap: 16, marginTop: 16 }}>
           
-          {/* Categorías */}
-          <div>
-            <SectionHeader label="Prendas" expanded={expanded.categorias} onToggle={() => toggle('categorias')} />
-            {expanded.categorias && (
-              <div className="flex flex-col mt-3" style={{ gap: 6 }}>
-                {CATEGORIAS_TIENDA.map((c: string) => {
-                  const actuales: string[] = Array.isArray(filters.categorias) ? filters.categorias : [];
-                  const active = actuales.some((x: string) => normalizarFiltro(x) === normalizarFiltro(c));
-                  return (
-                    <button type="button" key={c} onClick={() => toggleCategoria(c)} className="flex items-center gap-2.5 text-left transition-colors group">
-                      <span style={{ width: 14, height: 14, border: `1.5px solid ${active ? '#7c3aed' : '#d1d5db'}`, background: active ? '#7c3aed' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {active && <svg viewBox="0 0 10 10" fill="none" style={{ width: 8, height: 8 }}><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                      </span>
-                      <span style={{ fontSize: 13, color: active ? '#7c3aed' : '#6b7280', fontWeight: active ? 600 : 400 }} className="group-hover:text-[#7c3aed] transition-colors">{c}</span>
-                    </button>
-                  );
-                })}
+          {/* Categorías — no aplica en CategoryPage, ya fijada por la URL */}
+          {showCategorias && (
+            <>
+              <div>
+                <SectionHeader label="Prendas" expanded={expanded.categorias} onToggle={() => toggle('categorias')} />
+                {expanded.categorias && (
+                  <div className="flex flex-col mt-3" style={{ gap: 6 }}>
+                    {CATEGORIAS_TIENDA.map((c: string) => {
+                      const actuales: string[] = Array.isArray(filters.categorias) ? filters.categorias : [];
+                      const active = actuales.some((x: string) => normalizarFiltro(x) === normalizarFiltro(c));
+                      return (
+                        <button type="button" key={c} onClick={() => toggleCategoria(c)} className="flex items-center gap-2.5 text-left transition-colors group">
+                          <span style={{ width: 14, height: 14, border: `1.5px solid ${active ? '#7c3aed' : '#d1d5db'}`, background: active ? '#7c3aed' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {active && <svg viewBox="0 0 10 10" fill="none" style={{ width: 8, height: 8 }}><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                          </span>
+                          <span style={{ fontSize: 13, color: active ? '#7c3aed' : '#6b7280', fontWeight: active ? 600 : 400 }} className="group-hover:text-[#7c3aed] transition-colors">{c}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <Divider />
+              <Divider />
+            </>
+          )}
 
           {/* Género */}
           <div>

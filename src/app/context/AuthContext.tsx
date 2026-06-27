@@ -18,7 +18,7 @@ interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; role?: Role; error?: string }>;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; role?: Role; error?: string }>;
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateUser: (partial: Partial<AuthUser>) => void;
@@ -61,16 +61,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // [P16 FIX] isAdmin con useMemo para evitar recálculo innecesario en cada render
   const isAdmin = useMemo(() => user?.role === 'admin', [user]);
 
-  // ── MÉTODO DE INICIO DE SESIÓN ──
-  const login = async (email: string, password: string): Promise<{ success: boolean; role?: Role; error?: string }> => {
-    const trimmedEmail = email.trim().toLowerCase();
+  // ── MÉTODO DE INICIO DE SESIÓN (acepta usuario o correo, el backend resuelve cuál es) ──
+  const login = async (identifier: string, password: string): Promise<{ success: boolean; role?: Role; error?: string }> => {
+    const trimmedIdentifier = identifier.trim();
     const trimmedPass = password.trim();
 
-    if (!trimmedEmail || !trimmedPass) {
-      return { success: false, error: 'Ingresa tu email y contraseña.' };
+    if (!trimmedIdentifier || !trimmedPass) {
+      return { success: false, error: 'Ingresa tu usuario o correo y tu contraseña.' };
     }
 
-    const result = await loginApi(trimmedEmail, trimmedPass);
+    const result = await loginApi(trimmedIdentifier, trimmedPass);
 
     if (!result.success) {
       return { success: false, error: result.error };
@@ -87,12 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // [P9 FIX] Eliminada la comprobación errónea de `typeof apiUser.usuario === 'string'`.
     // El username viene directamente en apiUser.usuUsername (raíz de la respuesta).
     // [P10 FIX] Ahora LoginApiResponse tipifica todos los campos necesarios, sin 'any'.
+    // [LOGIN-ID FIX] El correo real viene de apiUser.usuEmail: si guardáramos el identificador
+    // tal cual fue tecleado, un login por nombre de usuario dejaría "email" con el username.
     const loggedUser: AuthUser = {
       id: Number(apiUser.id ?? apiUser.usuId ?? 0),
       name: apiUser.cliNombre
         ? `${apiUser.cliNombre} ${apiUser.cliApellido ?? ''}`.trim()
-        : trimmedEmail.split('@')[0],
-      email: trimmedEmail,
+        : (apiUser.usuEmail ?? trimmedIdentifier).split('@')[0],
+      email: apiUser.usuEmail ?? trimmedIdentifier,
       role,
       username: apiUser.usuUsername ?? 'usuario',
       tipoDocumento: apiUser.cliTipoDocumento ?? 'DNI',

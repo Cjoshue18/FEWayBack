@@ -76,7 +76,7 @@ export function CategoryPage() {
     setLoading(true);
 
     // 🔥 CORRECCIÓN: Invocamos al nuevo método pasando el ID unificado como un objeto filtro
-    getProductos({ categoria: apiId })
+    getProductos({ categoria: [apiId] })
       .then((data) => {
         if (active) {
           setProducts(data);
@@ -94,7 +94,7 @@ export function CategoryPage() {
   const filteredProducts = products.filter((p) => {
     if (filters.sexo && filters.sexo.length > 0 && !filters.sexo.includes(p.sexo)) return false;
     if (filters.tallas && filters.tallas.length > 0 && !p.tallas?.some((t) => filters.tallas.includes(t))) return false;
-    if (filters.colors && filters.colors.length > 0 && !p.colors?.some((c) => filters.colors.includes(c))) return false;
+    if (filters.colors && filters.colors.length > 0 && !p.colors?.some((c) => filters.colors.map(String).includes(String(c)))) return false;
     if (filters.soloDisponibles && !p.inStock) return false;
     if (p.price < filters.precioMin || p.price > filters.precioMax) return false;
     return true;
@@ -132,7 +132,7 @@ export function CategoryPage() {
       {/* Content */}
       <div className="container mx-auto px-6 py-10">
         <div className="flex gap-10">
-          <FilterSidebar filters={filters} setFilters={setFilters} />
+          <FilterSidebar filters={filters} setFilters={setFilters} showCategorias={false} />
 
           <div className="flex-1 min-w-0">
             {/* toolbar */}

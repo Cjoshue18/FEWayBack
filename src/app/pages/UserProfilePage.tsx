@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import {
-  User, Mail, Phone, FileText, Lock,
+  User, Mail, FileText, Lock,
   Edit2, ShoppingBag, MapPin, CreditCard,
-  AlertCircle, RefreshCw, CheckCircle,
+  AlertCircle, RefreshCw, CheckCircle, Calendar,
+  Plus, Trash2, Star
 } from 'lucide-react';
-import { useProfile, type UpdateProfilePayload } from '../hooks/useProfile';
+import { useAuth } from '../context/AuthContext'; // 🔑 Volvemos al origen confiable de datos
+import {
+  useProfile, useDirecciones,
+  type UpdateProfilePayload, type Direccion, type DireccionPayload
+} from '../hooks/useProfile';
 
-// ── Skeleton ──
+// ── SKELETON DE CARGA ELEGANTE ──
 function ProfileSkeleton() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -38,52 +43,43 @@ function ProfileSkeleton() {
   );
 }
 
-// ── Error ──
-function ProfileError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="bg-white rounded-2xl p-10 shadow-sm border border-red-100 max-w-md w-full text-center">
-        <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-        <h2 className="text-base font-bold uppercase tracking-wider text-gray-900 mb-2">No se pudo cargar el perfil</h2>
-        <p className="text-sm text-gray-500 mb-6">{message}</p>
-        <button onClick={onRetry} className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#7c3aed] text-white text-xs font-bold uppercase tracking-widest rounded-full hover:bg-[#6d28d9] transition-colors">
-          <RefreshCw className="w-3.5 h-3.5" /> Reintentar
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Modal de edición de perfil ──
+// ── MODAL DE EDICIÓN (Mantenemos la UX de la rama perfil) ──
 function EditProfileModal({
-  initialData, saving, onSave, onClose,
+  initialData,
+  saving,
+  onSave,
+  onClose,
 }: {
-  initialData: { nombres: string; apellidos: string; usuUsername: string; usuEmail: string; telefono: string };
+  initialData: { name: string; username: string; email: string };
   saving: boolean;
-  onSave: (p: UpdateProfilePayload) => Promise<void>;
+  onSave: (payload: UpdateProfilePayload) => Promise<{ success: boolean; error?: string }>;
   onClose: () => void;
 }) {
   const [form, setForm] = useState(initialData);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const set = (field: keyof typeof form, val: string) =>
+  const handleChange = (field: keyof typeof form, val: string) =>
     setForm((p) => ({ ...p, [field]: val }));
 
   const handleSubmit = async () => {
     setSaveError(null);
-    try {
-      await onSave({
-        cliNombre:   form.nombres.trim(),
-        cliApellido: form.apellidos.trim(),
-        usuUsername: form.usuUsername.trim(),
-        usuEmail:    form.usuEmail.trim(),
-        cliTelefono: form.telefono.trim() || null,
-      });
+
+    // El backend espera nombre y apellido por separado (cliNombre / cliApellido).
+    const [cliNombre, ...resto] = form.name.trim().split(/\s+/);
+
+    const result = await onSave({
+      cliNombre: cliNombre || '',
+      cliApellido: resto.join(' '),
+      usuUsername: form.username.trim(),
+      usuEmail: form.email.trim(),
+    });
+
+    if (result.success) {
       setSaved(true);
-      setTimeout(onClose, 700);
-    } catch {
-      setSaveError('No se pudieron guardar los cambios.');
+      setTimeout(onClose, 800);
+    } else {
+      setSaveError(result.error ?? 'No se pudieron guardar los cambios en el servidor.');
     }
   };
 
@@ -92,30 +88,31 @@ function EditProfileModal({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-base font-bold uppercase tracking-wider text-gray-900">Editar información</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
         </div>
+        
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          {([
-            { label: 'Nombres',          field: 'nombres'     as const },
-            { label: 'Apellidos',         field: 'apellidos'   as const },
-            { label: 'Nombre de usuario', field: 'usuUsername' as const },
-            { label: 'Correo electrónico',field: 'usuEmail'    as const },
-            { label: 'Teléfono',          field: 'telefono'    as const },
-          ]).map(({ label, field }) => (
-            <div key={field} className={field === 'usuEmail' || field === 'telefono' ? 'sm:col-span-2' : ''}>
+          {[
+            { label: 'Nombre Completo', field: 'name' as const },
+            { label: 'Nombre de usuario', field: 'username' as const },
+            { label: 'Correo electrónico', field: 'email' as const },
+          ].map(({ label, field }) => (
+            <div key={field} className={field === 'email' ? 'sm:col-span-2' : ''}>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{label}</label>
               <input
                 type="text"
                 value={form[field]}
-                onChange={(e) => set(field, e.target.value)}
+                onChange={(e) => handleChange(field, e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/30 focus:border-[#7c3aed]"
               />
             </div>
           ))}
         </div>
+
         {saveError && <p className="text-xs text-red-500 font-medium mb-4">{saveError}</p>}
+
         <div className="flex gap-3 justify-end">
-          <button onClick={onClose} className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-gray-800 transition-colors">Cancelar</button>
+          <button onClick={onClose} className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-gray-800">Cancelar</button>
           <button
             onClick={handleSubmit}
             disabled={saving || saved}
@@ -131,7 +128,115 @@ function EditProfileModal({
   );
 }
 
-// ── InfoField helper ──
+// ── MODAL DE DIRECCIÓN (crear / editar) ──
+function DireccionFormModal({
+  initialData,
+  saving,
+  onSave,
+  onClose,
+}: {
+  initialData: DireccionPayload;
+  saving: boolean;
+  onSave: (payload: DireccionPayload) => Promise<{ success: boolean; error?: string }>;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState(initialData);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleChange = (field: keyof DireccionPayload, val: string | boolean) =>
+    setForm((p) => ({ ...p, [field]: val }));
+
+  const handleSubmit = async () => {
+    setSaveError(null);
+    const result = await onSave(form);
+    if (result.success) onClose();
+    else setSaveError(result.error ?? 'No se pudo guardar la dirección.');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-base font-bold uppercase tracking-wider text-gray-900">Dirección de envío</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div className="sm:col-span-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Calle / Dirección</label>
+            <input
+              type="text"
+              value={form.DirCalle}
+              onChange={(e) => handleChange('DirCalle', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/30 focus:border-[#7c3aed]"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Distrito</label>
+            <input
+              type="text"
+              value={form.DirDistrito}
+              onChange={(e) => handleChange('DirDistrito', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/30 focus:border-[#7c3aed]"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Provincia</label>
+            <input
+              type="text"
+              value={form.DirProvincia}
+              onChange={(e) => handleChange('DirProvincia', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/30 focus:border-[#7c3aed]"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Departamento</label>
+            <input
+              type="text"
+              value={form.DirDepartamento}
+              onChange={(e) => handleChange('DirDepartamento', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/30 focus:border-[#7c3aed]"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Referencia</label>
+            <input
+              type="text"
+              value={form.DirReferencia}
+              onChange={(e) => handleChange('DirReferencia', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/30 focus:border-[#7c3aed]"
+            />
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 mb-6 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.DirPreferido}
+            onChange={(e) => handleChange('DirPreferido', e.target.checked)}
+            className="accent-[#7c3aed]"
+          />
+          <span className="text-xs text-gray-600">Usar como dirección preferida</span>
+        </label>
+
+        {saveError && <p className="text-xs text-red-500 font-medium mb-4">{saveError}</p>}
+
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-gray-800">Cancelar</button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-6 py-2 bg-[#7c3aed] disabled:opacity-60 text-white text-xs font-bold uppercase tracking-widest rounded-full hover:bg-[#6d28d9] transition-colors"
+          >
+            {saving ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Guardando…</> : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── COMPONENTE AUXILIAR PARA CAMPOS DE INFORMACIÓN ──
 function InfoField({ icon: Icon, label, value, empty = false }: { icon: React.ElementType; label: string; value: string; empty?: boolean }) {
   return (
     <div className="flex items-start gap-3">
@@ -146,37 +251,84 @@ function InfoField({ icon: Icon, label, value, empty = false }: { icon: React.El
   );
 }
 
-// ── COMPONENTE PRINCIPAL ──
+// ── COMPONENTE PRINCIPAL UNIFICADO ──
 export function UserProfilePage() {
-  const { profile, loading, error, saving, refetch, updateProfile } = useProfile();
+  const { user, updateUser } = useAuth(); // Usamos las propiedades seguras que sí pintaban datos en main
+  const { profile, loading: profileLoading, error: profileError, saving, updateProfile, refetch } = useProfile();
+  const {
+    direcciones, loading: direccionesLoading, saving: direccionSaving,
+    crearDireccion, editarDireccion, eliminarDireccion,
+  } = useDirecciones();
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [direccionModal, setDireccionModal] = useState<{ mode: 'create' | 'edit'; direccion?: Direccion } | null>(null);
 
-  if (loading) return <ProfileSkeleton />;
-  if (error || !profile) return <ProfileError message={error ?? 'Error desconocido'} onRetry={refetch} />;
+  // Si los datos globales de autenticación se están recuperando
+  if (!user) return <ProfileSkeleton />;
 
-  const fullName = [profile.nombre, profile.apellido].filter(Boolean).join(' ') || 'Usuario Wayback';
-  const initial  = fullName.charAt(0).toUpperCase();
+  // GET /api/profile/mi-perfil ya resolvió: usamos esos datos como fuente de verdad.
+  // Mientras carga (o si falla), mantenemos lo que ya teníamos en AuthContext para no parpadear.
+  const nombreCompleto = profile ? `${profile.nombre} ${profile.apellido}`.trim() : '';
+  const fullName = nombreCompleto || user.name || 'Usuario Wayback';
+  const cleanUsernameRaw = profile?.username || user.username;
+  const cleanUsername = cleanUsernameRaw ? cleanUsernameRaw.replace(/^@/, '') : 'sin_username';
+  const email = profile?.email || user.email || '';
+  const documento = profile?.documento || user.documento;
+  const tipoDocumento = profile?.tipoDocumento || user.tipoDocumento;
+  const initial = fullName.charAt(0).toUpperCase();
 
-  const quickActions = [
-    { icon: ShoppingBag, label: 'Mis pedidos',     description: 'Historial de compras',    href: '/perfil/pedidos',      disabled: false },
-    { icon: MapPin,      label: 'Mis direcciones',  description: 'Direcciones de envío',    href: '/perfil/direcciones',  disabled: false },
-    { icon: CreditCard,  label: 'Métodos de pago',  description: 'Próximamente disponible', href: '#',                    disabled: true  },
-  ];
+  const handleSaveProfile = async (payload: UpdateProfilePayload) => {
+    const result = await updateProfile(payload);
+    if (result.success) {
+      updateUser({
+        name: `${payload.cliNombre ?? ''} ${payload.cliApellido ?? ''}`.trim(),
+        username: payload.usuUsername,
+        email: payload.usuEmail,
+      });
+    }
+    return result;
+  };
+
+  const handleSaveDireccion = (payload: DireccionPayload) =>
+    direccionModal?.mode === 'edit' && direccionModal.direccion
+      ? editarDireccion(direccionModal.direccion.dirId, payload)
+      : crearDireccion(payload);
+
+  const handleDeleteDireccion = (dirId: number) => {
+    if (window.confirm('¿Eliminar esta dirección?')) eliminarDireccion(dirId);
+  };
 
   return (
     <>
       {isEditOpen && (
         <EditProfileModal
           initialData={{
-            nombres:     profile.nombre,
-            apellidos:   profile.apellido,
-            usuUsername: profile.username,
-            usuEmail:    profile.email,
-            telefono:    profile.telefono ?? '',
+            name: fullName,
+            username: cleanUsername,
+            email,
           }}
           saving={saving}
-          onSave={async (payload) => { await updateProfile(payload); }}
+          onSave={handleSaveProfile}
           onClose={() => setIsEditOpen(false)}
+        />
+      )}
+
+      {direccionModal && (
+        <DireccionFormModal
+          initialData={
+            direccionModal.direccion
+              ? {
+                  DirCalle: direccionModal.direccion.dirCalle,
+                  DirDistrito: direccionModal.direccion.dirDistrito,
+                  DirProvincia: direccionModal.direccion.dirProvincia,
+                  DirDepartamento: direccionModal.direccion.dirDepartamento,
+                  DirReferencia: direccionModal.direccion.dirReferencia,
+                  DirPreferido: direccionModal.direccion.dirPreferido,
+                }
+              : { DirCalle: '', DirDistrito: '', DirProvincia: '', DirDepartamento: '', DirReferencia: '', DirPreferido: false }
+          }
+          saving={direccionSaving}
+          onSave={handleSaveDireccion}
+          onClose={() => setDireccionModal(null)}
         />
       )}
 
@@ -184,8 +336,25 @@ export function UserProfilePage() {
         <div className="container mx-auto px-6">
           <h1 className="text-3xl mb-8 font-black uppercase tracking-tight text-[#7c3aed]">Mi Perfil</h1>
 
+          {profileError && (
+            <div className="mb-6 flex items-center justify-between gap-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{profileError}</span>
+              </div>
+              <button
+                onClick={refetch}
+                disabled={profileLoading}
+                className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider hover:underline disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${profileLoading ? 'animate-spin' : ''}`} /> Reintentar
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Columna izquierda */}
+            
+            {/* COLUMNA IZQUIERDA (Avatar + Tarjeta rápida) */}
             <div className="lg:col-span-1 space-y-6">
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
                 <div className="flex flex-col items-center">
@@ -193,48 +362,37 @@ export function UserProfilePage() {
                     {initial}
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-1 text-center">{fullName}</h2>
-                  <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">@{profile.username}</p>
-                  <p className="text-[#7c3aed] text-xs font-bold uppercase tracking-wider mb-3">
-                    {profile.role === 'admin' ? 'Administrador del Sistema' : 'Cliente Registrado'}
+                  <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">@{cleanUsername}</p>
+                  <p className="text-[#7c3aed] text-xs font-bold uppercase tracking-wider">
+                    {user.role === 'admin' ? 'Administrador del Sistema' : 'Cliente Registrado'}
                   </p>
-                  {profile.fechaRegistro && (
-                    <p className="text-gray-300 text-[10px] font-medium">
-                      Miembro desde{' '}
-                      {new Date(profile.fechaRegistro).toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}
-                    </p>
-                  )}
                 </div>
               </div>
 
+              {/* Estadísticas Rápidas (Recuperadas de Main) */}
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
-                <h3 className="font-bold text-xs uppercase tracking-wider text-gray-400 mb-4">Accesos rápidos</h3>
-                <div className="space-y-2">
-                  {quickActions.map(({ icon: Icon, label, description, href, disabled }) => (
-                    <a
-                      key={label}
-                      href={disabled ? undefined : href}
-                      aria-disabled={disabled}
-                      className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
-                        disabled
-                          ? 'border-gray-100 opacity-40 cursor-not-allowed'
-                          : 'border-[rgba(124,58,237,0.08)] hover:border-[rgba(124,58,237,0.25)] hover:bg-[rgba(124,58,237,0.02)] cursor-pointer'
-                      }`}
-                    >
-                      <div className="w-9 h-9 rounded-full bg-[rgba(124,58,237,0.06)] flex items-center justify-center flex-shrink-0">
-                        <Icon className="w-4 h-4 text-[#7c3aed]" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900">{label}</p>
-                        <p className="text-[10px] text-gray-400 font-medium">{description}</p>
-                      </div>
-                    </a>
-                  ))}
+                <h3 className="font-bold text-xs uppercase tracking-wider text-gray-400 mb-4">Estadísticas</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 font-medium">Órdenes totales</span>
+                    <span className="font-bold text-[#7c3aed]">3</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 font-medium">Favoritos</span>
+                    <span className="font-bold text-[#7c3aed]">5</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 font-medium">Club Wayback Puntos</span>
+                    <span className="font-bold text-black">150 pts</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Columna derecha */}
+            {/* COLUMNA DERECHA (Información detallada + Historial) */}
             <div className="lg:col-span-2 space-y-6">
+              
+              {/* Bloque de Información del Perfil */}
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-base font-bold uppercase tracking-wider text-gray-900">Información de la cuenta</h3>
@@ -245,14 +403,118 @@ export function UserProfilePage() {
                     <Edit2 className="w-3.5 h-3.5" /> Modificar
                   </button>
                 </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <InfoField icon={Mail}     label="Correo electrónico"                value={profile.email} />
-                  <InfoField icon={User}     label="Nombre de usuario"                 value={`@${profile.username}`} />
-                  <InfoField icon={FileText} label={`Documento (${profile.tipoDocumento})`} value={profile.documento || 'No registrado'} empty={!profile.documento} />
-                  <InfoField icon={Phone}    label="Teléfono"                          value={profile.telefono || 'No especificado'} empty={!profile.telefono} />
+                  <InfoField icon={Mail} label="Correo electrónico" value={email || 'No registrado'} />
+                  <InfoField icon={User} label="Nombre de usuario" value={`@${cleanUsername}`} />
+                  <InfoField
+                    icon={FileText}
+                    label={`Documento (${tipoDocumento || 'DNI'})`}
+                    value={documento || 'No registrado'}
+                    empty={!documento}
+                  />
                 </div>
               </div>
 
+              {/* Mis Direcciones */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-base font-bold uppercase tracking-wider text-gray-900 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-[#7c3aed]" /> Mis Direcciones
+                  </h3>
+                  <button
+                    onClick={() => setDireccionModal({ mode: 'create' })}
+                    className="text-[#7c3aed] hover:underline text-xs font-bold uppercase tracking-wider flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Agregar
+                  </button>
+                </div>
+
+                {direccionesLoading ? (
+                  <p className="text-xs text-gray-400 flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Cargando direcciones…
+                  </p>
+                ) : direcciones.length === 0 ? (
+                  <p className="text-xs text-gray-400">
+                    Aún no tienes direcciones guardadas. Agrega una para poder completar tus pedidos.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {direcciones.map((dir) => (
+                      <div
+                        key={dir.dirId}
+                        className="flex items-start justify-between gap-3 p-3 rounded-xl border border-[rgba(124,58,237,0.1)]"
+                      >
+                        <div className="text-sm text-gray-700">
+                          <p className="font-medium text-gray-900">
+                            {dir.dirCalle}, {dir.dirDistrito}
+                            {dir.dirPreferido && (
+                              <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase text-[#7c3aed]">
+                                <Star className="w-3 h-3 fill-[#7c3aed]" /> Preferida
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {dir.dirProvincia}, {dir.dirDepartamento}
+                            {dir.dirReferencia ? ` • ${dir.dirReferencia}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => setDireccionModal({ mode: 'edit', direccion: dir })}
+                            className="text-gray-400 hover:text-[#7c3aed] transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDireccion(dir.dirId)}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Órdenes Recientes (Rescatado el diseño limpio de Main) */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
+                <h3 className="text-base font-bold uppercase tracking-wider text-gray-900 mb-6">Órdenes Recientes</h3>
+                <div className="space-y-4">
+                  {[
+                    { id: '#WAY-2026-003', date: '12 Jun 2026', status: 'En preparación', amount: 'S/ 189.00', items: 1 },
+                    { id: '#WAY-2026-002', date: '28 May 2026', status: 'Entregado', amount: 'S/ 320.00', items: 2 },
+                    { id: '#WAY-2026-001', date: '10 May 2026', status: 'Entregado', amount: 'S/ 95.00', items: 1 },
+                  ].map((order) => (
+                    <div
+                      key={order.id}
+                      className="flex items-center justify-between p-4 rounded-xl border border-[rgba(124,58,237,0.08)] hover:border-[rgba(124,58,237,0.2)] transition-colors"
+                    >
+                      <div className="flex-1">
+                        <p className="font-bold text-sm text-gray-900 mb-0.5">{order.id}</p>
+                        <p className="text-xs text-gray-400 font-medium">{order.date} • {order.items} {order.items === 1 ? 'artículo' : 'artículos'}</p>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <p className="font-bold text-sm text-gray-900">{order.amount}</p>
+                          <p className={`text-xs font-bold uppercase tracking-wider ${order.status === 'Entregado' ? 'text-green-600' : 'text-[#7c3aed]'}`}>
+                            {order.status}
+                          </p>
+                        </div>
+                        <button className="text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-black transition-colors">
+                          Detalles
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Seguridad */}
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
                 <h3 className="text-base font-bold uppercase tracking-wider text-gray-900 mb-6">Seguridad</h3>
                 <div className="flex items-center justify-between">
@@ -270,6 +532,7 @@ export function UserProfilePage() {
                   </button>
                 </div>
               </div>
+
             </div>
           </div>
         </div>

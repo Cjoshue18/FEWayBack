@@ -1,8 +1,18 @@
 import { useState } from 'react';
 import { Heart, Plus } from 'lucide-react';
+import { useFavorites } from '@/app/hooks/useFavorites';
+import { ProductQuickViewModal } from '@/app/components/ProductQuickViewModal';
+import { CartDrawer } from '@/app/components/CartDrawer';
 
+export interface ProductVariante {
+  varId: number;
+  varTalla: string;
+  colorNombre: string;
+  colorHex: string;
+  varStock: number;
+}
 
-interface Product {
+export interface Product {
   id: number;
   name: string;
   price: number;
@@ -11,16 +21,43 @@ interface Product {
   hoverImage?: string;
   badge?: string;
   inStock?: boolean;
+  proDescuento?: number;
+  proDescuentoInicio?: string;
+  proDescuentoFin?: string;
+  colors?: (number | string)[];
+  tallas?: string[];
+  variantes?: ProductVariante[];
 }
 
 interface ProductCardProps {
   product: Product;
 }
 
+// Descuento vigente según rango de fechas del backend (proDescuentoInicio/Fin son ISO datetime).
+export function calcularDescuento(product: Product): { activo: boolean; precioFinal: number } {
+  const { price, proDescuento, proDescuentoInicio, proDescuentoFin } = product;
+  if (!proDescuento || !proDescuentoInicio || !proDescuentoFin) {
+    return { activo: false, precioFinal: price };
+  }
+
+  const ahora = Date.now();
+  const inicio = new Date(proDescuentoInicio).getTime();
+  const fin = new Date(proDescuentoFin).getTime();
+  const activo = ahora >= inicio && ahora <= fin;
+
+  return {
+    activo,
+    precioFinal: activo ? price - price * (proDescuento / 100) : price,
+  };
+}
+
 export function ProductCard({ product }: ProductCardProps) {
-  const [isHovered, setIsHovered]   = useState(false);
-  const [wishlisted, setWishlisted] = useState(false);
-  const [modalOpen, setModalOpen]   = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const wishlisted = isFavorite(product.id);
+  const { activo: descuentoActivo, precioFinal } = calcularDescuento(product);
 
   return (
     <>
@@ -35,8 +72,11 @@ export function ProductCard({ product }: ProductCardProps) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* ── Image ── */}
-        <div className="relative aspect-[3/4] overflow-hidden bg-gray-50">
+        {/* ── Image — clic abre la vista previa, como en Ripley ── */}
+        <div
+          className="relative aspect-[3/4] overflow-hidden bg-gray-50"
+          onClick={() => setModalOpen(true)}
+        >
 
           {/* badges */}
           {product.badge && product.inStock !== false && (
@@ -70,7 +110,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {/* wishlist — visible on hover */}
           <button
-            onClick={(e) => { e.stopPropagation(); setWishlisted((w) => !w); }}
+            onClick={(e) => { e.stopPropagation(); toggleFavorite(product); }}
             className="absolute top-3 right-3 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
             style={{
               opacity: isHovered ? 1 : 0,
@@ -93,17 +133,22 @@ export function ProductCard({ product }: ProductCardProps) {
             >
               {product.name}
             </p>
-            {/* ── CAMBIAR EN TU PRODUCTCARD.TSX ── */}
-<div className="flex items-baseline gap-1.5">
-  {product.originalPrice && (
-    <span className="line-through text-gray-400" style={{ fontSize: 12 }}>
-      S/ {product.originalPrice} {/* 🔑 Cambiado de $ a S/ */}
-    </span>
-  )}
-  <span style={{ fontSize: 17, fontWeight: 800, color: '#7c3aed' }}>
-    S/ {product.price} {/* 🔑 Cambiado de $ a S/ */}
-  </span>
-</div>
+            <div className="flex items-baseline gap-1.5">
+              {descuentoActivo ? (
+                <>
+                  <span className="line-through text-gray-400" style={{ fontSize: 12 }}>
+                    S/ {product.price.toFixed(2)}
+                  </span>
+                  <span style={{ fontSize: 17, fontWeight: 800, color: '#7c3aed' }}>
+                    S/ {precioFinal.toFixed(2)}
+                  </span>
+                </>
+              ) : (
+                <span style={{ fontSize: 17, fontWeight: 800, color: '#7c3aed' }}>
+                  S/ {product.price.toFixed(2)}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* quick-view "+" button */}
@@ -122,6 +167,15 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
       </div>
 
+      {modalOpen && (
+        <ProductQuickViewModal
+          product={product}
+          onClose={() => setModalOpen(false)}
+          onAdded={() => { setModalOpen(false); setCartDrawerOpen(true); }}
+        />
+      )}
+
+      <CartDrawer open={cartDrawerOpen} onOpenChange={setCartDrawerOpen} />
     </>
   );
 }

@@ -11,7 +11,7 @@ interface LoginModalProps {
 
 export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalProps) {
   const { login } = useAuth();
-  const [email,    setEmail]    = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading,  setLoading]  = useState(false);
@@ -23,7 +23,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
     setError('');
     setLoading(true);
 
-    const result = await login(email, password);
+    const result = await login(identifier, password);
     setLoading(false);
 
     if (!result.success) {
@@ -43,7 +43,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
   };
 
   const resetForm = () => {
-    setEmail('');
+    setIdentifier('');
     setPassword('');
     setShowPass(false);
     setError('');
@@ -144,15 +144,15 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
                 <label
                   style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', color: '#374151', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}
                 >
-                  Email
+                  Usuario o correo
                 </label>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tu@correo.com"
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="tu@correo.com o tu_usuario"
                   required
-                  autoComplete="email"
+                  autoComplete="username"
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-300 focus:outline-none focus:border-[#7c3aed] focus:bg-white transition-all"
                   style={{ fontSize: 14 }}
                 />

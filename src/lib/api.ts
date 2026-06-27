@@ -81,6 +81,9 @@ export interface ProductoApi {
   pro_nombre?: string; proNombre?: string; nombre?: string; name?: string;
   pro_precio?: number; proPrecio?: number; precio?: number; price?: number;
   pro_precio_original?: number; precioOriginal?: number; originalPrice?: number;
+  proDescuento?: number; pro_descuento?: number;
+  proDescuentoInicio?: string; pro_descuento_inicio?: string;
+  proDescuentoFin?: string; pro_descuento_fin?: string;
   pro_imagen?: string; proImagen?: string; imagen?: string; image?: string; image_url?: string; imageUrl?: string; urlImagen?: string; proImagenUrl?: string; foto?: string; proFoto?: string;
   pro_imagen_alternativa?: string; proImagenHover?: string; hoverImage?: string;
   badge?: string;
@@ -89,6 +92,14 @@ export interface ProductoApi {
   pro_colores?: string | number[]; colors?: number[];
   pro_stock?: number; inStock?: boolean; stock?: number;
   categoria?: string | number; categoriaId?: number; catId?: number; cat_id?: number; pro_categoria?: string | number; proCategoria?: string | number;
+}
+
+export interface ProductoVariante {
+  varId: number;
+  varTalla: string;
+  colorNombre: string;
+  colorHex: string;
+  varStock: number;
 }
 
 export interface Product {
@@ -104,6 +115,10 @@ export interface Product {
   hoverImage?: string;
   badge?: string;
   categoria?: string | number;
+  proDescuento?: number;
+  proDescuentoInicio?: string;
+  proDescuentoFin?: string;
+  variantes?: ProductoVariante[];
 }
 
 export interface RegisterData {
@@ -117,10 +132,15 @@ export interface RegisterData {
 }
 
 // ── INTERFACES PARA FILTROS COMBINADOS ──
+// categoria/estilo/color/talla aceptan selección múltiple → se envían como llaves repetidas
+// en el query string (?color=rojo&color=verde). genero es de selección única.
 export interface FilterOptions {
-  categoria?: string | number;
-  estilo?: string | number;
+  categoria?: (string | number)[];
+  estilo?: (string | number)[];
+  color?: string[];
+  talla?: string[];
   genero?: string;
+  stock?: boolean;
   precioMin?: number;
   precioMax?: number;
 }
@@ -194,14 +214,17 @@ export async function registerClienteApi(data: RegisterData): Promise<{ success:
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      // [DNI FIX] El backend usa convención cli*/usu* en TODOS los demás endpoints
+      // (login, perfil). Las claves planas (sin prefijo) que se enviaban antes no
+      // calzaban con el DTO real, así que el documento nunca llegaba a guardarse.
       body: JSON.stringify({
-        email: data.Email,
-        nombreUsuario: data.NombreUsuario,
-        contrasena: data.Contrasena,
-        nombres: data.Nombres,
-        apellidos: data.Apellidos,
-        tipoDocumento: data.TipoDocumento,
-        documento: data.Documento
+        usuEmail: data.Email,
+        usuUsername: data.NombreUsuario,
+        usuContrasena: data.Contrasena,
+        cliNombre: data.Nombres,
+        cliApellido: data.Apellidos,
+        cliTipoDocumento: data.TipoDocumento,
+        cliDocumento: data.Documento
       }),
     });
 
@@ -290,6 +313,20 @@ const parseProducto = (item: any): Product => {
     .map((s: string) => s.trim().toUpperCase())
     .filter((s: string) => s !== '');
 
+  // Variantes con detalle de talla/color/stock para la vista previa (varId, varTalla, colorNombre, colorHex, varStock)
+  let listaVariantes: ProductoVariante[] = [];
+  if (Array.isArray(rawVariantes)) {
+    listaVariantes = rawVariantes
+      .filter((v: any) => v && typeof v === 'object')
+      .map((v: any) => ({
+        varId: Number(v.varId ?? v.var_id ?? 0),
+        varTalla: String(v.varTalla ?? v.var_talla ?? v.vartalla ?? '').trim().toUpperCase(),
+        colorNombre: String(v.colorNombre ?? v.color_nombre ?? v.var_color ?? ''),
+        colorHex: String(v.colorHex ?? v.color_hex ?? '').trim().toUpperCase(),
+        varStock: Number(v.varStock ?? v.var_stock ?? 0),
+      }));
+  }
+
   let listaColores: string[] = [];
   const rawColores = obj['colores'] ?? obj['pro_colores'] ?? obj['procolores'] ?? [];
 
@@ -323,7 +360,11 @@ const parseProducto = (item: any): Product => {
     tallas: listaTallas,
     colors: listaColores,
     inStock: typeof obj['instock'] === 'boolean' ? obj['instock'] : true,
-    categoria: obj['categoria'] ?? ''
+    categoria: obj['categoria'] ?? '',
+    proDescuento: obj['prodescuento'] !== undefined ? Number(obj['prodescuento']) : undefined,
+    proDescuentoInicio: obj['prodescuentoinicio'] ?? undefined,
+    proDescuentoFin: obj['prodescuentofin'] ?? undefined,
+    variantes: listaVariantes,
   };
 };
 
@@ -490,17 +531,30 @@ export async function getProductos(filtros?: FilterOptions): Promise<Product[]> 
     };
 
     if (filtros) {
-      if (filtros.categoria !== undefined && filtros.categoria !== '') {
-        const catKey = String(filtros.categoria).toLowerCase().trim();
-        const numericId = MAPA_CATEGORIAS_IDS[catKey] ?? filtros.categoria;
+      filtros.categoria?.forEach((cat) => {
+        if (cat === undefined || cat === '') return;
+        const catKey = String(cat).toLowerCase().trim();
+        const numericId = MAPA_CATEGORIAS_IDS[catKey] ?? cat;
         url.searchParams.append('categoria', String(numericId));
-      }
-      if (filtros.estilo !== undefined && filtros.estilo !== '') {
-        url.searchParams.append('estilo', String(filtros.estilo));
-      }
+      });
+      filtros.estilo?.forEach((est) => {
+        if (est === undefined || est === '') return;
+        url.searchParams.append('estilo', String(est));
+      });
+      filtros.color?.forEach((c) => {
+        if (!c) return;
+        url.searchParams.append('color', c);
+      });
+      filtros.talla?.forEach((t) => {
+        if (!t) return;
+        url.searchParams.append('talla', t);
+      });
       if (filtros.genero !== undefined && filtros.genero !== '') {
         const genVal = String(filtros.genero).toLowerCase().trim();
         url.searchParams.append('genero', genVal);
+      }
+      if (filtros.stock) {
+        url.searchParams.append('stock', 'true');
       }
       if (filtros.precioMin !== undefined) {
         url.searchParams.append('precioMin', filtros.precioMin.toString());
@@ -520,18 +574,157 @@ export async function getProductos(filtros?: FilterOptions): Promise<Product[]> 
 }
 
 export async function getProductosPorCategoria(categoryId: number | string): Promise<Product[]> {
-  return getProductos({ categoria: categoryId });
+  return getProductos({ categoria: [categoryId] });
+}
+
+// ── PEDIDOS (Checkout Yape) ──
+export interface CrearPedidoPayload {
+  dirId: number;
+  NumeroYape: string;
+  CodigoAprobacion: string;
+  Items: { VarId: number; Cantidad: number }[];
+}
+
+export async function crearPedido(payload: CrearPedidoPayload): Promise<{ success: boolean; error?: string }> {
+  try {
+    await fetchJson(`${API_BASE}/api/mis-pedidos`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? 'No se pudo confirmar el pedido.' };
+  }
+}
+
+// ── ADMIN: REPORTES DE PEDIDOS (reconciliación manual de Yape) ──
+export const ESTADOS_PEDIDO = ['pendiente', 'aceptado', 'rechazado', 'cancelado', 'entregado'] as const;
+export type EstadoPedido = typeof ESTADOS_PEDIDO[number];
+
+export interface PedidoAdminItem {
+  varId: number;
+  nombre: string;
+  talla: string;
+  color: string;
+  cantidad: number;
+  precio: number;
+}
+
+export interface PedidoAdmin {
+  pedId: number;
+  cliente: string;
+  email: string;
+  estado: string;
+  total: number;
+  fechaCompra: string;
+  fechaEntrega: string;
+  metodoPago: string;
+  items: number;
+}
+
+export interface PedidoAdminDetalle extends PedidoAdmin {
+  numeroYape: string;
+  codigoAprobacion: string;
+  direccionEnvio: string;
+  itemsDetalle: PedidoAdminItem[];
+}
+
+// 🎯 Parser de pedidos insensible a mayúsculas/minúsculas (mismo patrón que parseProducto)
+function nombreClienteDePedido(raw: any): string {
+  if (typeof raw?.cliente === 'string') return raw.cliente;
+  const c = raw?.cliente ?? {};
+  const nombre = c.cliNombre ?? c.cli_nombre ?? raw?.cliNombre ?? raw?.cli_nombre ?? '';
+  const apellido = c.cliApellido ?? c.cli_apellido ?? raw?.cliApellido ?? raw?.cli_apellido ?? '';
+  const full = `${nombre} ${apellido}`.trim();
+  return full || 'Cliente';
+}
+
+function parsePedidoAdmin(item: any): PedidoAdmin {
+  const obj: Record<string, any> = {};
+  if (item && typeof item === 'object') {
+    Object.keys(item).forEach((key) => { obj[key.toLowerCase()] = item[key]; });
+  }
+  return {
+    pedId: Number(obj['pedid'] ?? obj['ped_id'] ?? obj['id'] ?? 0),
+    cliente: nombreClienteDePedido(item),
+    email: String(obj['email'] ?? obj['usuemail'] ?? item?.cliente?.usuario?.usuEmail ?? item?.usuario?.usuEmail ?? ''),
+    estado: String(obj['pedestado'] ?? obj['ped_estado'] ?? obj['estado'] ?? 'pendiente').toLowerCase(),
+    total: Number(obj['pedtotal'] ?? obj['ped_total'] ?? obj['total'] ?? 0),
+    fechaCompra: String(obj['pedfechacompra'] ?? obj['ped_fecha_compra'] ?? obj['fechacompra'] ?? obj['fecha'] ?? ''),
+    fechaEntrega: String(obj['pedfechaentrega'] ?? obj['ped_fecha_entrega'] ?? obj['fechaentrega'] ?? ''),
+    metodoPago: String(obj['metodopago'] ?? obj['metodo_pago'] ?? 'Yape'),
+    items: Array.isArray(obj['items']) ? obj['items'].length : Number(obj['cantidaditems'] ?? obj['totalitems'] ?? 0),
+  };
+}
+
+function parsePedidoAdminDetalle(item: any): PedidoAdminDetalle {
+  const base = parsePedidoAdmin(item);
+  const obj: Record<string, any> = {};
+  if (item && typeof item === 'object') {
+    Object.keys(item).forEach((key) => { obj[key.toLowerCase()] = item[key]; });
+  }
+  const rawItems = Array.isArray(obj['items']) ? obj['items'] : [];
+  const itemsDetalle: PedidoAdminItem[] = rawItems
+    .filter((v: any) => v && typeof v === 'object')
+    .map((v: any) => ({
+      varId: Number(v.varId ?? v.var_id ?? 0),
+      nombre: String(v.proNombre ?? v.pro_nombre ?? v.nombre ?? v.producto ?? ''),
+      talla: String(v.varTalla ?? v.var_talla ?? v.talla ?? ''),
+      color: String(v.colorNombre ?? v.color_nombre ?? v.color ?? ''),
+      cantidad: Number(v.cantidad ?? v.pedDetCantidad ?? v.ped_det_cantidad ?? 0),
+      precio: Number(v.precio ?? v.pedDetPrecio ?? v.ped_det_precio ?? 0),
+    }));
+
+  return {
+    ...base,
+    numeroYape: String(obj['numeroyape'] ?? obj['numero_yape'] ?? ''),
+    codigoAprobacion: String(obj['codigoaprobacion'] ?? obj['codigo_aprobacion'] ?? ''),
+    direccionEnvio: String(obj['direccionenvio'] ?? obj['dircalle'] ?? obj['direccion'] ?? ''),
+    itemsDetalle,
+  };
+}
+
+export async function getPedidosAdmin(): Promise<PedidoAdmin[]> {
+  try {
+    const data = await fetchJson<any[]>(`${API_BASE}/api/admin/reportes/pedidos`);
+    return Array.isArray(data) ? data.map(parsePedidoAdmin) : [];
+  } catch (error) {
+    console.error('Error al listar pedidos (admin):', error);
+    return [];
+  }
+}
+
+export async function getPedidoAdminDetalle(id: number): Promise<PedidoAdminDetalle | null> {
+  try {
+    const data = await fetchJson<any>(`${API_BASE}/api/admin/reportes/pedidos/${id}`);
+    return parsePedidoAdminDetalle(data);
+  } catch (error) {
+    console.error('Error al obtener detalle de pedido:', error);
+    return null;
+  }
+}
+
+export async function actualizarEstadoPedido(id: number, estado: EstadoPedido): Promise<{ success: boolean; error?: string }> {
+  try {
+    await fetchJson(`${API_BASE}/api/admin/reportes/pedidos/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ PedEstado: estado }),
+    });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? 'No se pudo actualizar el estado del pedido.' };
+  }
 }
 
 // ── AUTENTICACIÓN ──
 // [P2 FIX] loginApi ahora tipifica correctamente la respuesta del backend
-export async function loginApi(email: string, pass: string): Promise<{ success: boolean; token?: string; user?: LoginApiResponse; error?: string }> {
+export async function loginApi(usernameOrEmail: string, pass: string): Promise<{ success: boolean; token?: string; user?: LoginApiResponse; error?: string }> {
   const url = `${API_BASE}/api/auth/login`;
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ UsuUsernameOrEmail: email, UsuContrasena: pass })
+      body: JSON.stringify({ UsuUsernameOrEmail: usernameOrEmail, UsuContrasena: pass })
     });
     const data: LoginApiResponse = await res.json();
     if (!res.ok) return { success: false, error: (data as any).message || 'Credenciales inválidas' };

@@ -1,60 +1,77 @@
-import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router'; 
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import { FilterSidebar } from '@/app/components/FilterSidebar';
-import { ProductCard } from '@/app/components/ProductCard'; 
+import { ProductCard } from '@/app/components/ProductCard';
 import { getProductos } from '@/lib/api';
 import type { Product } from '@/lib/api';
 
+// Mismos IDs que FilterSidebar — traduce el id interno al nombre que espera la API en el query string.
+const MAPA_COLORS_NOMBRE: Record<number, string> = {
+  1: 'blanco', 2: 'negro', 3: 'azul', 4: 'verde',
+  5: 'amarillo', 6: 'rojo', 7: 'rosa', 8: 'morado',
+};
+
 export function CatalogoPage() {
   const [productos, setProductos] = useState<Product[]>([]);
-  const [loading, setLoading] = useState<boolean>(true); 
-  const [searchParams, setSearchParams] = useSearchParams(); 
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const categoriaUrl = searchParams.get('categoria');
-  
+  // Estado inicial leído una sola vez desde la URL (deep-link); de ahí en más, filters → URL.
   const [filters, setFilters] = useState<any>({
-    categorias: categoriaUrl ? [categoriaUrl] : [], 
-    sexo: [],
+    categorias: searchParams.getAll('categoria'),
+    sexo: searchParams.get('genero') ? [searchParams.get('genero') as string] : [],
     colors: [],
-    tallas: [],
-    soloDisponibles: false,
-    precioMin: 0,
-    precioMax: 500
+    tallas: searchParams.getAll('talla').map((t) => t.toUpperCase()),
+    soloDisponibles: searchParams.get('stock') === 'true',
+    precioMin: Number(searchParams.get('precioMin') ?? 0),
+    precioMax: Number(searchParams.get('precioMax') ?? 500),
   });
 
-  useEffect(() => {
-    const cat = searchParams.get('categoria');
-    if (cat) setFilters((f: any) => ({ ...f, categorias: [cat] }));
-  }, [searchParams]);
-
-  // ── 🎯 CONSUMO DINÁMICO CONECTADO A LOS FILTROS DE C# ──
+  // ── 🎯 Filtros = fuente de verdad. La URL y la llamada a la API se derivan de los mismos valores ──
   useEffect(() => {
     let active = true;
     setLoading(true);
 
+    const categorias: string[] = filters.categorias;
+    const coloresNombre = (filters.colors as number[]).map((id) => MAPA_COLORS_NOMBRE[id]).filter(Boolean);
+    const tallasLower = (filters.tallas as string[]).map((t) => t.toLowerCase());
+    const genero = filters.sexo.length > 0 ? filters.sexo[0] : undefined;
+
+    const urlParams: [string, string][] = [];
+    categorias.forEach((c) => urlParams.push(['categoria', c]));
+    coloresNombre.forEach((c) => urlParams.push(['color', c]));
+    tallasLower.forEach((t) => urlParams.push(['talla', t]));
+    if (genero) urlParams.push(['genero', genero]);
+    if (filters.soloDisponibles) urlParams.push(['stock', 'true']);
+    if (filters.precioMin) urlParams.push(['precioMin', String(filters.precioMin)]);
+    if (filters.precioMax !== 500) urlParams.push(['precioMax', String(filters.precioMax)]);
+    setSearchParams(urlParams, { replace: true });
+
     getProductos({
-      categoria: filters.categorias.length > 0 ? filters.categorias[0] : undefined,
-      genero: filters.sexo.length > 0 ? filters.sexo[0] : undefined,
+      categoria: categorias.length > 0 ? categorias : undefined,
+      genero,
+      color: coloresNombre.length > 0 ? coloresNombre : undefined,
+      talla: tallasLower.length > 0 ? tallasLower : undefined,
+      stock: filters.soloDisponibles || undefined,
       precioMin: filters.precioMin,
-      precioMax: filters.precioMax
+      precioMax: filters.precioMax,
     })
-      .then(res => {
+      .then((res) => {
         if (active) {
-          console.log("👉 [Wayback C# Catalogo Sync]:", res.length, "prendas recibidas.");
+          console.log('👉 [Wayback C# Catalogo Sync]:', res.length, 'prendas recibidas.');
           setProductos(res ?? []);
         }
       })
-      .catch(err => console.error("Error conectando a la API:", err))
+      .catch((err) => console.error('Error conectando a la API:', err))
       .finally(() => {
         if (active) setLoading(false);
       });
 
     return () => { active = false; };
-  }, [filters.categorias, filters.sexo, filters.precioMin, filters.precioMax, filters.tallas, filters.colors]); 
+  }, [filters.categorias, filters.sexo, filters.colors, filters.tallas, filters.soloDisponibles, filters.precioMin, filters.precioMax]);
 
-  // Función de escape para limpiar filtros
+  // Limpiar filtros también limpia la URL (el efecto de arriba reacciona al cambio de estado).
   const resetAll = () => {
-    setSearchParams({});
     setFilters({
       categorias: [],
       sexo: [],
@@ -66,54 +83,8 @@ export function CatalogoPage() {
     });
   };
 
-  const productosFiltrados = useMemo(() => {
-    const MAPA_COLORS_HEX: Record<number, string> = {
-      1: '#FFFFFF', // Blanco
-      2: '#000000', // Negro
-      3: '#0000FF', // Azul
-      4: '#008000', // Verde
-      5: '#FFFF00', // Amarillo
-      6: '#FF0000', // Rojo
-      7: '#FFC0CB', // Rosa
-      8: '#800080', // Morado
-    };
-
-    return productos.filter((producto) => {
-      
-      // 🎨 1. Filtro de Colores
-      if (filters.colors && filters.colors.length > 0) {
-        const hexSeleccionados = filters.colors.map((id: number) => MAPA_COLORS_HEX[id] || '');
-        const arrayColoresPrenda = Array.isArray(producto.colors) ? producto.colors.map(String) : [];
-        
-        const match = arrayColoresPrenda.some((colorHex: string) => 
-          hexSeleccionados.includes(colorHex.toUpperCase())
-        );
-        if (!match) return false;
-      }
-
-      // 📐 2. Filtro de Tallas
-      if (filters.tallas && filters.tallas.length > 0) {
-        const tallasPrenda = Array.isArray(producto.tallas) 
-          ? producto.tallas.map((t: any) => String(t).trim().toUpperCase())
-          : [];
-
-        const tallasSeleccionadas = filters.tallas.map((x: string) => String(x).trim().toUpperCase());
-        const match = tallasPrenda.some((t: string) => tallasSeleccionadas.includes(t));
-        
-        if (!match) return false;
-      }
-
-      // 🛒 3. Filtro de Disponibilidad
-      if (filters.soloDisponibles) {
-        if (!producto.inStock) return false;
-      }
-
-      return true;
-    });
-  }, [productos, filters.colors, filters.tallas, filters.soloDisponibles]);
-
   return (
-    /* 👉 CAMBIO AQUÍ: Agregamos 'items-start'. 
+    /* 👉 CAMBIO AQUÍ: Agregamos 'items-start'.
       Esto evita que la barra de filtros se estire hacia abajo acompañando al catálogo entero.
     */
     <div className="container mx-auto px-6 py-8 flex items-start gap-8 min-h-[60vh]">
@@ -123,7 +94,7 @@ export function CatalogoPage() {
         <h2 className="text-xl font-black uppercase tracking-tight mb-6 text-gray-900">
           Catálogo de Productos
         </h2>
-        
+
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {[1, 2, 3, 6].map((n) => (
@@ -132,13 +103,13 @@ export function CatalogoPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {productosFiltrados.map((prod) => (
+            {productos.map((prod) => (
               <ProductCard key={prod.id} product={prod} />
             ))}
           </div>
         )}
 
-        {!loading && productosFiltrados.length === 0 && (
+        {!loading && productos.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 border border-dashed border-gray-200 bg-white rounded-2xl p-8 mt-2">
             <p className="text-xs text-gray-400 font-bold uppercase tracking-widest text-center mb-4">
               No se encontraron prendas con los filtros seleccionados.
