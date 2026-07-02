@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, Users, ShoppingBag, Tag, TrendingUp, Clock } from 'lucide-react';
+import { Package, Users, ShoppingBag, Tag, TrendingUp, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 // 🛠️ Importamos tus funciones de comunicación directa con .NET
 import { getProductos, getClientes, getCategorias, getPedidosAdmin, getIngresosSemanales } from '@/lib/api';
 import type { PedidoAdmin, IngresoDiario } from '@/lib/api';
@@ -197,8 +197,9 @@ export function AdminDashboard() {
                 <button 
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="text-xs font-semibold text-slate-600 hover:text-violet-600 disabled:opacity-40 disabled:hover:text-slate-600 transition-colors"
+                  className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-violet-600 disabled:opacity-40 disabled:hover:text-slate-600 transition-colors"
                 >
+                  <ChevronLeft size={14} />
                   Anterior
                 </button>
                 <span className="text-xs text-slate-400 font-medium">
@@ -207,9 +208,10 @@ export function AdminDashboard() {
                 <button 
                   onClick={() => setPage(p => Math.min(Math.ceil(allOrders.length / ITEMS_PER_PAGE), p + 1))}
                   disabled={page === Math.ceil(allOrders.length / ITEMS_PER_PAGE)}
-                  className="text-xs font-semibold text-slate-600 hover:text-violet-600 disabled:opacity-40 disabled:hover:text-slate-600 transition-colors"
+                  className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-violet-600 disabled:opacity-40 disabled:hover:text-slate-600 transition-colors"
                 >
                   Siguiente
+                  <ChevronRight size={14} />
                 </button>
               </div>
             )}
@@ -217,7 +219,9 @@ export function AdminDashboard() {
         )}
       </div>
 
-      {/* Estado del Sistema */}
+      {/* Right Column: Estado del Sistema + Gráfica */}
+      <div className="flex flex-col gap-6">
+        {/* Estado del Sistema */}
       <div
         className="
           bg-white
@@ -301,47 +305,48 @@ export function AdminDashboard() {
           ))}
         </div>
       </div>
-    </div>
 
-    {/* Ingresos Chart Section */}
-    <div className="mt-6 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-      <div className="flex items-center gap-2 mb-6">
-        <TrendingUp className="text-violet-600" size={16} />
-        <h2 className="text-sm font-semibold text-slate-900">Ingresos de los últimos 7 días</h2>
+      {/* Ingresos Chart Section */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-6">
+            <TrendingUp className="text-violet-600" size={16} />
+            <h2 className="text-sm font-semibold text-slate-900">Ingresos de los últimos 7 días</h2>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-10">
+              <p className="text-sm text-slate-400 animate-pulse">Cargando gráfica...</p>
+            </div>
+          ) : ingresos.length === 0 ? (
+            <div className="text-center py-10">
+               <p className="text-sm text-slate-500">No hay datos de ingresos recientes.</p>
+            </div>
+          ) : (
+            <div className="flex items-end gap-2 h-48 mt-4 border-b border-slate-100 pb-2">
+              {(() => {
+                 const maxTotal = Math.max(...ingresos.map(i => i.total), 1);
+                 return ingresos.map((item) => {
+                   const heightPercent = (item.total / maxTotal) * 100;
+                   return (
+                     <div key={item.fecha} className="flex-1 flex flex-col items-center justify-end h-full group">
+                       <div className="opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold text-[#10b981] mb-2">
+                         S/ {item.total.toFixed(2)}
+                       </div>
+                       <div 
+                         className="w-full max-w-[40px] bg-violet-100 rounded-t-md group-hover:bg-violet-400 transition-colors cursor-pointer"
+                         style={{ height: `${heightPercent}%`, minHeight: '4px' }}
+                       />
+                       <div className="mt-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                         {item.fecha.substring(0, 3)}
+                       </div>
+                     </div>
+                   );
+                 });
+              })()}
+            </div>
+          )}
+        </div>
       </div>
-
-      {loading ? (
-        <div className="text-center py-10">
-          <p className="text-sm text-slate-400 animate-pulse">Cargando gráfica...</p>
-        </div>
-      ) : ingresos.length === 0 ? (
-        <div className="text-center py-10">
-           <p className="text-sm text-slate-500">No hay datos de ingresos recientes.</p>
-        </div>
-      ) : (
-        <div className="flex items-end gap-2 h-48 mt-4 border-b border-slate-100 pb-2">
-          {(() => {
-             const maxTotal = Math.max(...ingresos.map(i => i.total), 1);
-             return ingresos.map((item) => {
-               const heightPercent = (item.total / maxTotal) * 100;
-               return (
-                 <div key={item.fecha} className="flex-1 flex flex-col items-center justify-end h-full group">
-                   <div className="opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold text-[#10b981] mb-2">
-                     S/ {item.total.toFixed(2)}
-                   </div>
-                   <div 
-                     className="w-full max-w-[40px] bg-violet-100 rounded-t-md group-hover:bg-violet-400 transition-colors cursor-pointer"
-                     style={{ height: `${heightPercent}%`, minHeight: '4px' }}
-                   />
-                   <div className="mt-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                     {item.fecha.substring(0, 3)}
-                   </div>
-                 </div>
-               );
-             });
-          })()}
-        </div>
-      )}
     </div>
   </div>
 );
