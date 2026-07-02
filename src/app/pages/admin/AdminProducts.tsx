@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Edit2, Trash2, X, Eye } from 'lucide-react';
-import { getProductos, fetchJson, API_BASE } from '@/lib/api';
+import { getProductos, getProductoDetalle, fetchJson, API_BASE } from '@/lib/api';
 import type { Product } from '@/lib/api';
 
 const CATEGORIAS = ['Pantalón','Falda','Shorts','Jogger','Camisetas','Suéteres','Chaquetas','Sets Baggy','Sets Denim','Sets Deportivos','Sets Tejidos'];
@@ -246,7 +246,10 @@ export function AdminProducts() {
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => setVariantesOf(p)}
+                        onClick={async () => {
+                          const full = await getProductoDetalle(p.id);
+                          if (full) setVariantesOf(full);
+                        }}
                         title="Ver variantes (talla / color / stock)"
                         className="relative p-1 text-gray-400 hover:text-[#7c3aed] transition-colors"
                       >

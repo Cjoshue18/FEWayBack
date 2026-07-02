@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Package, Users, ShoppingBag, Tag, TrendingUp, Clock } from 'lucide-react';
 // 🛠️ Importamos tus funciones de comunicación directa con .NET
-import { getProductos, getClientes, getCategorias } from '@/lib/api';
+import { getProductos, getClientes, getCategorias, getPedidosAdmin } from '@/lib/api';
+import type { PedidoAdmin } from '@/lib/api';
 
 export function AdminDashboard() {
   // ── ESTADOS DINÁMICOS PARA MÉTRICAS REALES ──
@@ -9,8 +10,9 @@ export function AdminDashboard() {
     productosCount: 0,
     clientesCount: 0,
     categoriasCount: 0,
-    pedidosCount: 0, // Mantenemos este en 0 o mockeado si aún no hay tablas de órdenes
+    pedidosCount: 0,
   });
+  const [recentOrders, setRecentOrders] = useState<PedidoAdmin[]>([]);
 
   const [sysStatus, setSysStatus] = useState({
     dbConnected: false,
@@ -25,10 +27,11 @@ export function AdminDashboard() {
     async function fetchDashboardData() {
       try {
         // Disparamos consultas paralelas a Render para optimizar tiempos de carga
-        const [listaProductos, listaClientes, listaCategorias] = await Promise.all([
+        const [listaProductos, listaClientes, listaCategorias, listaPedidos] = await Promise.all([
           getProductos().catch(() => []),
           getClientes().catch(() => []),
           getCategorias().catch(() => []),
+          getPedidosAdmin().catch(() => []),
         ]);
 
         if (active) {
@@ -36,8 +39,9 @@ export function AdminDashboard() {
             productosCount: listaProductos.length,
             clientesCount: listaClientes.length,
             categoriasCount: listaCategorias.length || 11, // Fallback a tus 11 estáticas
-            pedidosCount: 0,
+            pedidosCount: listaPedidos.length,
           });
+          setRecentOrders(listaPedidos.slice(0, 5));
 
           // Si las consultas respondieron bien, el sistema está 100% operativo
           setSysStatus({
@@ -60,7 +64,7 @@ export function AdminDashboard() {
   const statCards = [
     { label: 'Productos', value: loading ? '...' : String(metrics.productosCount), sub: 'En catálogo de Supabase', icon: Package, color: '#7c3aed', bg: 'rgba(124,58,237,0.08)' },
     { label: 'Clientes', value: loading ? '...' : String(metrics.clientesCount), sub: 'Usuarios en PostgreSQL', icon: Users, color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)' },
-    { label: 'Pedidos', value: '—', sub: 'Módulo pendiente', icon: ShoppingBag, color: '#10b981', bg: 'rgba(16,185,129,0.08)' },
+    { label: 'Pedidos', value: loading ? '...' : String(metrics.pedidosCount), sub: 'Historial de compras', icon: ShoppingBag, color: '#10b981', bg: 'rgba(16,185,129,0.08)' },
     { label: 'Categorías', value: String(metrics.categoriasCount), sub: 'Segmentos activos', icon: Tag, color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
   ];
 
@@ -156,20 +160,32 @@ export function AdminDashboard() {
           </h2>
         </div>
 
-        <div className="text-center py-6">
-          <ShoppingBag
-            size={32}
-            className="mx-auto mb-3 text-slate-200"
-          />
-
-          <p className="text-sm text-slate-500">
-            Sin transacciones registradas
-          </p>
-
-          <p className="text-xs text-slate-400 mt-1">
-            Las compras realizadas aparecerán aquí
-          </p>
-        </div>
+        {loading ? (
+          <div className="text-center py-6">
+            <p className="text-sm text-slate-400 animate-pulse">Cargando...</p>
+          </div>
+        ) : recentOrders.length === 0 ? (
+          <div className="text-center py-6">
+            <ShoppingBag size={32} className="mx-auto mb-3 text-slate-200" />
+            <p className="text-sm text-slate-500">Sin transacciones registradas</p>
+            <p className="text-xs text-slate-400 mt-1">Las compras realizadas aparecerán aquí</p>
+          </div>
+        ) : (
+          <div className="space-y-4 mt-4">
+            {recentOrders.map((order) => (
+              <div key={order.pedId} className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Pedido #{order.pedId}</p>
+                  <p className="text-xs text-slate-500">{order.cliente}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-[#10b981]">S/ {order.total.toFixed(2)}</p>
+                  <p className="text-xs text-slate-400 capitalize">{order.estado}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Estado del Sistema */}
