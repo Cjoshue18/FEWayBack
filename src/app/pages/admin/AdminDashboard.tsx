@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Package, Users, ShoppingBag, Tag, TrendingUp, Clock } from 'lucide-react';
 // 🛠️ Importamos tus funciones de comunicación directa con .NET
-import { getProductos, getClientes, getCategorias, getPedidosAdmin } from '@/lib/api';
-import type { PedidoAdmin } from '@/lib/api';
+import { getProductos, getClientes, getCategorias, getPedidosAdmin, getIngresosSemanales } from '@/lib/api';
+import type { PedidoAdmin, IngresoDiario } from '@/lib/api';
 
 export function AdminDashboard() {
   // ── ESTADOS DINÁMICOS PARA MÉTRICAS REALES ──
@@ -13,6 +13,7 @@ export function AdminDashboard() {
     pedidosCount: 0,
   });
   const [allOrders, setAllOrders] = useState<PedidoAdmin[]>([]);
+  const [ingresos, setIngresos] = useState<IngresoDiario[]>([]);
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
@@ -29,11 +30,12 @@ export function AdminDashboard() {
     async function fetchDashboardData() {
       try {
         // Disparamos consultas paralelas a Render para optimizar tiempos de carga
-        const [listaProductos, listaClientes, listaCategorias, listaPedidos] = await Promise.all([
+        const [listaProductos, listaClientes, listaCategorias, listaPedidos, listaIngresos] = await Promise.all([
           getProductos().catch(() => []),
           getClientes().catch(() => []),
           getCategorias().catch(() => []),
           getPedidosAdmin().catch(() => []),
+          getIngresosSemanales().catch(() => []),
         ]);
 
         if (active) {
@@ -44,6 +46,7 @@ export function AdminDashboard() {
             pedidosCount: listaPedidos.length,
           });
           setAllOrders(listaPedidos);
+          setIngresos(listaIngresos);
 
           // Si las consultas respondieron bien, el sistema está 100% operativo
           setSysStatus({
@@ -166,7 +169,7 @@ export function AdminDashboard() {
           <div className="text-center py-6">
             <p className="text-sm text-slate-400 animate-pulse">Cargando...</p>
           </div>
-        ) : recentOrders.length === 0 ? (
+        ) : allOrders.length === 0 ? (
           <div className="text-center py-6">
             <ShoppingBag size={32} className="mx-auto mb-3 text-slate-200" />
             <p className="text-sm text-slate-500">Sin transacciones registradas</p>
@@ -298,6 +301,47 @@ export function AdminDashboard() {
           ))}
         </div>
       </div>
+    </div>
+
+    {/* Ingresos Chart Section */}
+    <div className="mt-6 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+      <div className="flex items-center gap-2 mb-6">
+        <TrendingUp className="text-violet-600" size={16} />
+        <h2 className="text-sm font-semibold text-slate-900">Ingresos de los últimos 7 días</h2>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-10">
+          <p className="text-sm text-slate-400 animate-pulse">Cargando gráfica...</p>
+        </div>
+      ) : ingresos.length === 0 ? (
+        <div className="text-center py-10">
+           <p className="text-sm text-slate-500">No hay datos de ingresos recientes.</p>
+        </div>
+      ) : (
+        <div className="flex items-end gap-2 h-48 mt-4 border-b border-slate-100 pb-2">
+          {(() => {
+             const maxTotal = Math.max(...ingresos.map(i => i.total), 1);
+             return ingresos.map((item) => {
+               const heightPercent = (item.total / maxTotal) * 100;
+               return (
+                 <div key={item.fecha} className="flex-1 flex flex-col items-center justify-end h-full group">
+                   <div className="opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold text-[#10b981] mb-2">
+                     S/ {item.total.toFixed(2)}
+                   </div>
+                   <div 
+                     className="w-full max-w-[40px] bg-violet-100 rounded-t-md group-hover:bg-violet-400 transition-colors cursor-pointer"
+                     style={{ height: `${heightPercent}%`, minHeight: '4px' }}
+                   />
+                   <div className="mt-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                     {item.fecha.substring(0, 3)}
+                   </div>
+                 </div>
+               );
+             });
+          })()}
+        </div>
+      )}
     </div>
   </div>
 );

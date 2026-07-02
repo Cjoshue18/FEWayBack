@@ -195,6 +195,15 @@ export interface DireccionPayload {
 }
 
 // [P6 FIX] Interfaz para actualización de perfil
+export interface AdminUpdatePedidoEstadoDTO {
+  pedEstado: string;
+}
+
+export interface IngresoDiario {
+  fecha: string;
+  total: number;
+}
+
 export interface UpdatePerfilData {
   cliNombre: string;
   cliApellido: string;
@@ -778,6 +787,7 @@ function parsePedidoAdminDetalle(item: any): PedidoAdminDetalle {
   };
 }
 
+// ── MÉTODOS DE ADMIN (PEDIDOS) ──
 export async function getPedidosAdmin(): Promise<PedidoAdmin[]> {
   try {
     const data = await fetchJson<any[]>(`${API_BASE}/api/admin/reportes/pedidos`);
@@ -786,6 +796,10 @@ export async function getPedidosAdmin(): Promise<PedidoAdmin[]> {
     console.error('Error al listar pedidos (admin):', error);
     return [];
   }
+}
+
+export async function getIngresosSemanales(): Promise<IngresoDiario[]> {
+  return fetchJson<IngresoDiario[]>(`${API_BASE}/api/admin/reportes/pedidos/ingresos-semanales`);
 }
 
 export async function getPedidoAdminDetalle(id: number): Promise<PedidoAdminDetalle | null> {
