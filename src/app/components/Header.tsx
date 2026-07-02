@@ -4,6 +4,7 @@ import { Search, ShoppingBag, User, Heart, Menu, X, LayoutDashboard, LogOut } fr
 import { CategoryMenu } from './CategoryMenu';
 import { SearchOverlay } from './SearchOverlay';
 import { useAuth } from '../context/AuthContext';
+import { DesktopDropdownMenu } from './DesktopDropdownMenu';
 
 // 🔑 DEFINIMOS LAS PROPS QUE EL CONTROLADOR GLOBAL LE PASARÁ AL HEADER
 interface HeaderProps {
@@ -186,7 +187,11 @@ export function Header({ onOpenLogin }: HeaderProps) {
           </div>
 
           {/* ── DESKTOP NAV OPTIMIZADO ── */}
-<nav className="hidden md:flex items-center gap-7" style={{ fontSize: 12, letterSpacing: '0.09em' }}>
+<nav className="hidden md:flex items-center gap-7 h-full" style={{ fontSize: 12, letterSpacing: '0.09em' }}>
+  <div className="flex items-center h-full">
+    <DesktopDropdownMenu />
+  </div>
+
   <Link to="/" className="text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
     Inicio
   </Link>
@@ -195,7 +200,6 @@ export function Header({ onOpenLogin }: HeaderProps) {
     Catálogo
   </Link>
 
-  
   <Link to="/contacto" className="text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-widest">
     Contacto
   </Link>

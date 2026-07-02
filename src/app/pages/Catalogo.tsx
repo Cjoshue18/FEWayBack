@@ -12,8 +12,8 @@ export function CatalogoPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Estado inicial leído una sola vez desde la URL (deep-link); de ahí en más, filters → URL.
-  const [filters, setFilters] = useState<any>({
+  // ── 🎯 URL = fuente de verdad. Los filtros se derivan directamente de los searchParams ──
+  const filters = {
     categorias: searchParams.getAll('categoria'),
     estilos: searchParams.getAll('estilo'),
     colors: searchParams.getAll('color').map(Number).filter(n => !isNaN(n)),
@@ -22,29 +22,37 @@ export function CatalogoPage() {
     soloDisponibles: searchParams.get('stock') === 'true',
     precioMin: Number(searchParams.get('precioMin') ?? 0),
     precioMax: Number(searchParams.get('precioMax') ?? 500),
-  });
+  };
 
-  // ── 🎯 Filtros = fuente de verdad. La URL y la llamada a la API se derivan de los mismos valores ──
+  const setFilters = (newFiltersOrFn: any) => {
+    let resolvedFilters = newFiltersOrFn;
+    if (typeof newFiltersOrFn === 'function') {
+      resolvedFilters = newFiltersOrFn(filters);
+    }
+    
+    const urlParams: [string, string][] = [];
+    (resolvedFilters.categorias || []).forEach((c: string) => urlParams.push(['categoria', c]));
+    (resolvedFilters.estilos || []).forEach((e: string) => urlParams.push(['estilo', e]));
+    (resolvedFilters.colors || []).forEach((c: number) => urlParams.push(['color', String(c)]));
+    (resolvedFilters.tallas || []).map((t: string) => t.toUpperCase()).forEach((t: string) => urlParams.push(['talla', t]));
+    if (resolvedFilters.sexo && resolvedFilters.sexo.length > 0) urlParams.push(['genero', resolvedFilters.sexo[0]]);
+    if (resolvedFilters.soloDisponibles) urlParams.push(['stock', 'true']);
+    if (resolvedFilters.precioMin) urlParams.push(['precioMin', String(resolvedFilters.precioMin)]);
+    if (resolvedFilters.precioMax !== undefined && resolvedFilters.precioMax !== 500) urlParams.push(['precioMax', String(resolvedFilters.precioMax)]);
+    
+    setSearchParams(urlParams, { replace: true });
+  };
+
+  // Cada vez que cambian los searchParams (la URL), hacemos fetch a la API
   useEffect(() => {
     let active = true;
     setLoading(true);
 
-    const categorias: string[] = filters.categorias || [];
-    const estilos: string[] = filters.estilos || [];
-    const coloresIds: number[] = filters.colors || [];
-    const tallasLower = (filters.tallas as string[]).map((t) => t.toLowerCase());
+    const categorias = filters.categorias;
+    const estilos = filters.estilos;
+    const coloresIds = filters.colors;
+    const tallasLower = filters.tallas.map((t) => t.toLowerCase());
     const genero = filters.sexo.length > 0 ? filters.sexo[0] : undefined;
-
-    const urlParams: [string, string][] = [];
-    categorias.forEach((c) => urlParams.push(['categoria', c]));
-    estilos.forEach((e) => urlParams.push(['estilo', e]));
-    coloresIds.forEach((c) => urlParams.push(['color', String(c)]));
-    tallasLower.forEach((t) => urlParams.push(['talla', t]));
-    if (genero) urlParams.push(['genero', genero]);
-    if (filters.soloDisponibles) urlParams.push(['stock', 'true']);
-    if (filters.precioMin) urlParams.push(['precioMin', String(filters.precioMin)]);
-    if (filters.precioMax !== 500) urlParams.push(['precioMax', String(filters.precioMax)]);
-    setSearchParams(urlParams, { replace: true });
 
     getProductos({
       categoria: categorias.length > 0 ? categorias : undefined,
@@ -68,20 +76,11 @@ export function CatalogoPage() {
       });
 
     return () => { active = false; };
-  }, [filters.categorias, filters.estilos, filters.sexo, filters.colors, filters.tallas, filters.soloDisponibles, filters.precioMin, filters.precioMax]);
+  }, [searchParams]);
 
-  // Limpiar filtros también limpia la URL (el efecto de arriba reacciona al cambio de estado).
+  // Limpiar filtros simplemente limpia los searchParams
   const resetAll = () => {
-    setFilters({
-      categorias: [],
-      estilos: [],
-      sexo: [],
-      colors: [],
-      tallas: [],
-      soloDisponibles: false,
-      precioMin: 0,
-      precioMax: 500
-    });
+    setSearchParams([], { replace: true });
   };
 
   return (

@@ -14,6 +14,7 @@ export interface Categoria {
 
 export interface EstiloApi {
   estID?: number;
+  estId?: number;
   estNombre?: string;
   est_id?: number;
   est_nombre?: string;
@@ -238,13 +239,13 @@ export async function registerClienteApi(data: RegisterData): Promise<{ success:
       // (login, perfil). Las claves planas (sin prefijo) que se enviaban antes no
       // calzaban con el DTO real, así que el documento nunca llegaba a guardarse.
       body: JSON.stringify({
-        Email:          data.Email,
-        NombreUsuario:  data.NombreUsuario,
-        Contrasena:     data.Contrasena,
-        Nombres:        data.Nombres,
-        Apellidos:      data.Apellidos,
-        TipoDocumento:  data.TipoDocumento,
-        Documento:      data.Documento,
+        Email: data.Email,
+        NombreUsuario: data.NombreUsuario,
+        Contrasena: data.Contrasena,
+        Nombres: data.Nombres,
+        Apellidos: data.Apellidos,
+        TipoDocumento: data.TipoDocumento,
+        Documento: data.Documento,
       }),
     });
 
@@ -273,7 +274,7 @@ const parseCategoria = (item: CategoriaApi): Categoria => ({
 });
 
 const parseEstilo = (item: EstiloApi): Estilo => ({
-  est_id: Number(item.estID ?? item.est_id ?? 0),
+  est_id: Number(item.estID ?? item.estId ?? item.est_id ?? 0),
   est_nombre: String(item.estNombre ?? item.est_nombre ?? ''),
 });
 

@@ -2,10 +2,13 @@
   "compilerOptions": {
     /* Entorno y Destino */
     "target": "ESNext",
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ESNext"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
-
     /* 🛠️ Resolución de Módulos para Frontend (Vite, Next, etc.) */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -13,20 +16,22 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-
     /* Chequeos Estrictos (Basados en tus preferencias) */
     "strict": true,
     //"noUncheckedIndexedAccess": true,
     //"exactOptionalPropertyTypes": true,
     "moduleDetection": "force",
-
     /* Opciones de Salida */
     "sourceMap": true,
-
     /* 🚨 ALIAS DE RUTAS MODERNO (Sin errores ni warnings) 🚨 */
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*",
+    "vite.config.ts"
+  ]
 }
