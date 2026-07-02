@@ -33,6 +33,15 @@ export function CartPage() {
   const [yape, setYape]                   = useState<YapeForm>({ numero: '', codigo: '' });
   const [errors, setErrors]               = useState<YapeErrors>({});
 
+  // ── Auto-seleccionar dirección favorita ────────────────────────────────────
+  const sortedDirecciones = [...direcciones].sort((a, b) => Number(b.dirPreferido) - Number(a.dirPreferido));
+
+  useEffect(() => {
+    if (!direccionesLoading && sortedDirecciones.length > 0 && selectedDirId === null) {
+      setSelectedDirId(sortedDirecciones[0].dirId);
+    }
+  }, [direccionesLoading, sortedDirecciones.length, selectedDirId]); // Solo reaccionar a la longitud, no a la referencia del arreglo para evitar loops
+
   // ── Cálculos ──────────────────────────────────────────────────────────────
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping  = subtotal > 1500 ? 0 : 150;
@@ -231,7 +240,7 @@ export function CartPage() {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {direcciones.map((dir) => (
+                    {sortedDirecciones.map((dir) => (
                       <label
                         key={dir.dirId}
                         className="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all"
@@ -248,13 +257,15 @@ export function CartPage() {
                           className="mt-1 accent-[#7c3aed]"
                         />
                         <span className="text-sm text-gray-700 leading-snug">
-                          {dir.dirCalle}, {dir.dirDistrito} — {dir.dirProvincia}
-                          {dir.dirPreferido && (
-                            <span className="ml-2 text-[10px] font-bold uppercase text-[#7c3aed] bg-[rgba(124,58,237,0.1)] px-1.5 py-0.5 rounded">
-                              Preferida
-                            </span>
-                          )}
+                          {dir.dirCalle}, {dir.dirDistrito}
+                          <br />
+                          {dir.dirProvincia}, {dir.dirDepartamento}
                         </span>
+                        {dir.dirPreferido && (
+                          <span className="ml-auto flex items-center gap-1 bg-[#7c3aed]/10 text-[#7c3aed] text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">
+                            Favorita
+                          </span>
+                        )}
                       </label>
                     ))}
                   </div>

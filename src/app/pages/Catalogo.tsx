@@ -5,11 +5,7 @@ import { ProductCard } from '@/app/components/ProductCard';
 import { getProductos } from '@/lib/api';
 import type { Product } from '@/lib/api';
 
-// Mismos IDs que FilterSidebar — traduce el id interno al nombre que espera la API en el query string.
-const MAPA_COLORS_NOMBRE: Record<number, string> = {
-  1: 'blanco', 2: 'negro', 3: 'azul', 4: 'verde',
-  5: 'amarillo', 6: 'rojo', 7: 'rosa', 8: 'morado',
-};
+// El filtro de colores ahora envía IDs directamente a la API, no nombres.
 
 export function CatalogoPage() {
   const [productos, setProductos] = useState<Product[]>([]);
@@ -19,8 +15,9 @@ export function CatalogoPage() {
   // Estado inicial leído una sola vez desde la URL (deep-link); de ahí en más, filters → URL.
   const [filters, setFilters] = useState<any>({
     categorias: searchParams.getAll('categoria'),
+    estilos: searchParams.getAll('estilo'),
+    colors: searchParams.getAll('color').map(Number).filter(n => !isNaN(n)),
     sexo: searchParams.get('genero') ? [searchParams.get('genero') as string] : [],
-    colors: [],
     tallas: searchParams.getAll('talla').map((t) => t.toUpperCase()),
     soloDisponibles: searchParams.get('stock') === 'true',
     precioMin: Number(searchParams.get('precioMin') ?? 0),
@@ -32,14 +29,16 @@ export function CatalogoPage() {
     let active = true;
     setLoading(true);
 
-    const categorias: string[] = filters.categorias;
-    const coloresNombre = (filters.colors as number[]).map((id) => MAPA_COLORS_NOMBRE[id]).filter(Boolean);
+    const categorias: string[] = filters.categorias || [];
+    const estilos: string[] = filters.estilos || [];
+    const coloresIds: number[] = filters.colors || [];
     const tallasLower = (filters.tallas as string[]).map((t) => t.toLowerCase());
     const genero = filters.sexo.length > 0 ? filters.sexo[0] : undefined;
 
     const urlParams: [string, string][] = [];
     categorias.forEach((c) => urlParams.push(['categoria', c]));
-    coloresNombre.forEach((c) => urlParams.push(['color', c]));
+    estilos.forEach((e) => urlParams.push(['estilo', e]));
+    coloresIds.forEach((c) => urlParams.push(['color', String(c)]));
     tallasLower.forEach((t) => urlParams.push(['talla', t]));
     if (genero) urlParams.push(['genero', genero]);
     if (filters.soloDisponibles) urlParams.push(['stock', 'true']);
@@ -49,8 +48,9 @@ export function CatalogoPage() {
 
     getProductos({
       categoria: categorias.length > 0 ? categorias : undefined,
+      estilo: estilos.length > 0 ? estilos : undefined,
       genero,
-      color: coloresNombre.length > 0 ? coloresNombre : undefined,
+      color: coloresIds.length > 0 ? coloresIds : undefined,
       talla: tallasLower.length > 0 ? tallasLower : undefined,
       stock: filters.soloDisponibles || undefined,
       precioMin: filters.precioMin,
@@ -68,12 +68,13 @@ export function CatalogoPage() {
       });
 
     return () => { active = false; };
-  }, [filters.categorias, filters.sexo, filters.colors, filters.tallas, filters.soloDisponibles, filters.precioMin, filters.precioMax]);
+  }, [filters.categorias, filters.estilos, filters.sexo, filters.colors, filters.tallas, filters.soloDisponibles, filters.precioMin, filters.precioMax]);
 
   // Limpiar filtros también limpia la URL (el efecto de arriba reacciona al cambio de estado).
   const resetAll = () => {
     setFilters({
       categorias: [],
+      estilos: [],
       sexo: [],
       colors: [],
       tallas: [],

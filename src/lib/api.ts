@@ -24,6 +24,16 @@ export interface Estilo {
   est_nombre: string;
 }
 
+export interface ColorApi {
+  colorId?: number;
+  colorHex?: string;
+}
+
+export interface Color {
+  colorId: number;
+  colorHex: string;
+}
+
 // [P8 FIX] Ampliamos ClienteApi.usuario para incluir usuUsername y usuId
 export interface ClienteApi {
   cli_id?: number;
@@ -138,7 +148,7 @@ export interface RegisterData {
 export interface FilterOptions {
   categoria?: (string | number)[];
   estilo?: (string | number)[];
-  color?: string[];
+  color?: (string | number)[];
   talla?: string[];
   genero?: string;
   stock?: boolean;
@@ -439,6 +449,16 @@ export async function getEstilos(): Promise<Estilo[]> {
   return Array.isArray(data) ? data.map(parseEstilo) : [];
 }
 
+// ── MÉTODOS DE COLORES ──
+export async function getColores(): Promise<Color[]> {
+  const url = `${API_BASE}/api/colores`;
+  const data = await fetchJson<ColorApi[]>(url);
+  return Array.isArray(data) ? data.map(c => ({
+    colorId: Number(c.colorId ?? 0),
+    colorHex: String(c.colorHex ?? '')
+  })) : [];
+}
+
 export async function createEstilo(estilo: { est_nombre: string }): Promise<Estilo> {
   const url = `${API_BASE}/api/estilos`;
   const data = await fetchJson<EstiloApi>(url, {
@@ -574,8 +594,8 @@ export async function getProductos(filtros?: FilterOptions): Promise<Product[]> 
         url.searchParams.append('estilo', String(est));
       });
       filtros.color?.forEach((c) => {
-        if (!c) return;
-        url.searchParams.append('color', c);
+        if (c === undefined || c === null) return;
+        url.searchParams.append('color', String(c));
       });
       filtros.talla?.forEach((t) => {
         if (!t) return;
