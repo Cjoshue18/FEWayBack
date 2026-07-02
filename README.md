@@ -5,7 +5,7 @@ Este repositorio contiene el frontend desarrollado en React + Vite para la tiend
 ## Agradecimientos y Créditos
 
 - Repo original: [klownika](https://github.com/klownika)
-- Refactorizado, expandido y modernizado por: Joshue (@Cjoshue18)
+- Refactorizado, expandido y modernizado por: [@Cjoshue18](https://github.com/Cjoshue18)
 
 Principales mejoras realizadas:
 - Migración de datos estáticos a integración real y persistente con la API REST en .NET.
