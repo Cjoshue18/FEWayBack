@@ -87,10 +87,12 @@ function EditProfileModal({
 
     // Inyectamos las claves exactas en el cuerpo JSON del PUT para Render
     const result = await onSave({
-      cli_nombre: cli_nombre || '',
-      cli_apellido: resto.join(' '),
-      usu_username: form.username.trim(),
-      cli_email: form.email.trim(),
+      cliNombre: cli_nombre || '',
+      cliApellido: resto.join(' '),
+      usuUsername: form.username.trim(),
+      usuEmail: form.email.trim(),
+      cliTipoDocumento: form.tipoDocumento,
+      cliDocumento: form.documento.trim(),
       cli_documento_tipo: form.tipoDocumento,
       cli_documento: form.documento.trim()
     });
@@ -136,6 +138,7 @@ function EditProfileModal({
               value={form.tipoDocumento}
               onChange={(e) => handleChange('tipoDocumento', e.target.value)}
               className={INPUT_CLS}
+              disabled={Boolean(initialData.documento)}
             >
               <option value="DNI">DNI</option>
               <option value="RUC">RUC</option>
@@ -150,6 +153,8 @@ function EditProfileModal({
               onChange={(e) => handleChange('documento', e.target.value)}
               className={INPUT_CLS}
               placeholder="Ingresa tu documento de identidad"
+              readOnly={Boolean(initialData.documento)}
+              disabled={Boolean(initialData.documento)}
             />
           </div>
           <div className="sm:col-span-2">
@@ -445,17 +450,19 @@ export function UserProfilePage() {
     const result = await updateProfile(payload);
     
     // Forzamos la actualización inmediata del estado y almacenamiento local
-    if (payload.cli_documento) {
-      localStorage.setItem(`wayback_dni_backup_${user.id}`, payload.cli_documento);
-      localStorage.setItem(`wayback_tipo_dni_backup_${user.id}`, payload.cli_documento_tipo || 'DNI');
+    const documentoValue = payload.cli_documento ?? payload.cliDocumento;
+    const tipoDocumentoValue = payload.cli_documento_tipo ?? payload.cliTipoDocumento;
+    if (documentoValue) {
+      localStorage.setItem(`wayback_dni_backup_${user.id}`, documentoValue);
+      localStorage.setItem(`wayback_tipo_dni_backup_${user.id}`, tipoDocumentoValue || 'DNI');
     }
 
     updateUser({
-      name: `${payload.cli_nombre ?? ''} ${payload.cli_apellido ?? ''}`.trim(),
-      username: payload.usu_username,
-      email: payload.cli_email,
-      documento: payload.cli_documento || documento,
-      tipoDocumento: payload.cli_documento_tipo || tipoDocumento
+      name: `${payload.cliNombre ?? payload.cli_nombre ?? ''} ${payload.cliApellido ?? payload.cli_apellido ?? ''}`.trim(),
+      username: payload.usuUsername ?? payload.usu_username,
+      email: payload.usuEmail ?? payload.cli_email,
+      documento: documentoValue || documento,
+      tipoDocumento: tipoDocumentoValue || tipoDocumento
     });
 
     return result;

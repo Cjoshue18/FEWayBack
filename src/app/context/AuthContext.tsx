@@ -93,8 +93,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: apiUser.usuEmail ?? (apiUser as any).usu_email ?? trimmedIdentifier,
       role,
       username: apiUser.usuUsername ?? (apiUser as any).usu_username ?? 'usuario',
-      tipoDocumento: apiUser.cliTipoDocumento ?? (apiUser as any).cli_documento_tipo ?? 'DNI',
-      documento: apiUser.cliDocumento ?? (apiUser as any).cli_documento ?? '', 
+      tipoDocumento: apiUser.cliTipoDocumento
+        ?? (apiUser as any).cli_documento_tipo
+        ?? apiUser.tipoDocumento
+        ?? (apiUser as any).usuario?.cliTipoDocumento
+        ?? (apiUser as any).usuario?.cli_documento_tipo
+        ?? (apiUser as any).usuario?.tipoDocumento
+        ?? 'DNI',
+      documento: apiUser.cliDocumento
+        ?? (apiUser as any).cli_documento
+        ?? apiUser.documento
+        ?? apiUser.dni
+        ?? (apiUser as any).nroDocumento
+        ?? (apiUser as any).numeroDocumento
+        ?? (apiUser as any).documentNumber
+        ?? (apiUser as any).usuario?.cliDocumento
+        ?? (apiUser as any).usuario?.cli_documento
+        ?? (apiUser as any).usuario?.documento
+        ?? (apiUser as any).usuario?.dni
+        ?? '',
       telefono: apiUser.cliTelefono ?? (apiUser as any).cli_telefono ?? null,
     };
 

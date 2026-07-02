@@ -44,6 +44,17 @@ app.post('/api/mis-pedidos', (req, res) => {
   const claims = decodeJwtPayload(req.headers.authorization);
   const { dirId, NumeroYape, CodigoAprobacion, Items = [] } = req.body ?? {};
 
+  const items = Items.map((it) => ({
+    varId: it.VarId,
+    cantidad: it.Cantidad,
+    precio: Number(it.Precio ?? it.precio ?? 0),
+    nombre: String(it.Nombre ?? it.nombre ?? ''),
+    talla: String(it.Talla ?? it.talla ?? ''),
+    color: String(it.Color ?? it.color ?? ''),
+  }));
+
+  const total = items.reduce((sum, it) => sum + Number(it.precio ?? 0) * Number(it.cantidad ?? 0), 0);
+
   const pedido = {
     pedId: nextPedId++,
     // Estructura que entiende el parser de AdminOrders (cliente puede ser objeto).
@@ -53,21 +64,14 @@ app.post('/api/mis-pedidos', (req, res) => {
     },
     email: claims.cli_email || claims.email || claims.unique_name || '',
     pedEstado: 'pendiente',
-    pedTotal: 0, // El payload del checkout no envía precios; total nominal en el mock.
+    pedTotal: total,
     pedFechaCompra: new Date().toISOString(),
     pedFechaEntrega: '',
     metodoPago: 'Yape',
     numeroYape: NumeroYape ?? '',
     codigoAprobacion: CodigoAprobacion ?? '',
     direccionEnvio: '', // La dirección vive en el backend real; no se resuelve localmente.
-    items: Items.map((it) => ({
-      varId: it.VarId,
-      cantidad: it.Cantidad,
-      precio: 0,
-      nombre: '',
-      talla: '',
-      color: '',
-    })),
+    items,
   };
 
   pedidos.push(pedido);

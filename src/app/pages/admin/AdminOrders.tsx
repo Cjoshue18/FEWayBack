@@ -8,11 +8,30 @@ import {
 import { Toaster } from '@/app/components/ui/sonner';
 
 const ESTADO_COLORS: Record<string, { color: string; bg: string }> = {
-  pendiente:  { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
-  aceptado:   { color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)' },
-  rechazado:  { color: '#ef4444', bg: 'rgba(239,68,68,0.08)' },
-  cancelado:  { color: '#9ca3af', bg: 'rgba(156,163,175,0.08)' },
-  entregado:  { color: '#10b981', bg: 'rgba(16,185,129,0.08)' },
+  pendiente: {
+    color: '#f59e0b',
+    bg: 'rgba(245,158,11,0.12)',
+  },
+
+  aceptado: {
+    color: '#10b981',
+    bg: 'rgba(16,185,129,0.12)',
+  },
+
+  rechazado: {
+    color: '#ef4444',
+    bg: 'rgba(239,68,68,0.12)',
+  },
+
+  cancelado: {
+    color: '#f97316',
+    bg: 'rgba(249,115,22,0.12)',
+  },
+
+  entregado: {
+    color: '#0ea5e9',
+    bg: 'rgba(14,165,233,0.12)',
+  },
 };
 
 export function AdminOrders() {
@@ -141,19 +160,26 @@ export function AdminOrders() {
                     <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#9ca3af' }}>#{o.pedId}</td>
                     <td className="px-5 py-3.5">
                       <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{o.cliente}</p>
-                        <p style={{ fontSize: 11, color: '#9ca3af' }}>{o.email}</p>
+                        <p className="text-sm font-semibold text-slate-900">{o.cliente}</p>
+                        <p className="text-xs text-slate-500 mt-1">{o.email}</p>
                       </div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="capitalize" style={{ fontSize: 11, fontWeight: 700, color: ec.color, background: ec.bg, padding: '2px 8px' }}>{o.estado}</span>
+                      <span className="capitalize" style={{ fontSize: 11, fontWeight: 700, color: ec.color, background: ec.bg, padding: '4px 10px', borderRadius: 999 }}>{o.estado}</span>
                     </td>
-                    <td className="px-5 py-3.5" style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>S/ {o.total.toFixed(2)}</td>
-                    <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#9ca3af' }}>{o.fechaCompra || '—'}</td>
-                    <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#9ca3af' }}>{o.fechaEntrega || '—'}</td>
                     <td className="px-5 py-3.5">
-                      <button onClick={() => setViewingId(o.pedId)} className="p-1.5 text-gray-300 hover:text-[#7c3aed] transition-colors">
-                        <Eye style={{ width: 14, height: 14 }} />
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-900">
+                        S/ {o.total.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#475569' }}>{formatDate(o.fechaCompra)}</td>
+                    <td className="px-5 py-3.5" style={{ fontSize: 12, color: '#475569' }}>{o.fechaEntrega ? formatDate(o.fechaEntrega) : 'No programada'}</td>
+                    <td className="px-5 py-3.5">
+                      <button
+                        onClick={() => setViewingId(o.pedId)}
+                        className="rounded-full bg-[#7c3aed] px-3 py-2 text-xs font-semibold uppercase tracking-widest text-white hover:bg-[#2563eb] transition-colors"
+                      >
+                        Ver detalle
                       </button>
                     </td>
                   </tr>
@@ -270,6 +296,18 @@ export function AdminOrders() {
       <Toaster />
     </div>
   );
+}
+
+function formatDate(raw: string): string {
+  if (!raw) return '—';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

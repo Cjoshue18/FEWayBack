@@ -20,9 +20,16 @@ export interface UpdateProfilePayload {
   cli_apellido?: string;
   usu_username?: string;
   cli_email?: string;
+  usuEmail?: string;
   cliTelefono?: string | null;
   cli_documento_tipo?: string; // 🎯 Añadido para el mapeo con Render
   cli_documento?: string;      // 🎯 Añadido para el mapeo con Render
+  cliNombre?: string;
+  cliApellido?: string;
+  usuUsername?: string;
+  cliEmail?: string;
+  cliTipoDocumento?: string;
+  cliDocumento?: string;
 }
 
 export interface Direccion {
@@ -46,14 +53,18 @@ export interface DireccionPayload {
 
 // ── MAPEADOR PERFIL ──
 function mapToUserProfile(raw: any): UserProfile {
+  const source = raw && typeof raw === 'object' && raw.data && typeof raw.data === 'object' ? raw.data : raw;
   const obj: Record<string, any> = {};
-  if (raw && typeof raw === 'object') {
-    Object.keys(raw).forEach(k => { obj[k.toLowerCase()] = raw[k]; });
+  if (source && typeof source === 'object') {
+    Object.keys(source).forEach(k => { obj[k.toLowerCase()] = source[k]; });
   }
   
   const usuarioObj: Record<string, any> = {};
   if (obj['usuario'] && typeof obj['usuario'] === 'object') {
-    Object.keys(obj['usuario']).forEach(k => { usuarioObj[k.toLowerCase()] = obj['usuario'][k]; });
+    Object.keys(obj['usuario']).forEach(k => {
+      const normalizedKey = k.toLowerCase().replace(/_/g, '');
+      usuarioObj[normalizedKey] = obj['usuario'][k];
+    });
   }
 
   const nombre = obj['cli_nombre'] ?? obj['clinombre'] ?? obj['nombre'] ?? obj['nombres'] ?? '';
@@ -63,8 +74,8 @@ function mapToUserProfile(raw: any): UserProfile {
   const fechaRegistro = usuarioObj['usufecharegistro'] ?? obj['cli_fecha_registro'] ?? obj['clifecharegistro'] ?? obj['fecharegistro'] ?? '';
   const rol = usuarioObj['rol'] ?? obj['rol'] ?? obj['role'] ?? 'client';
   
-  const tipoDocumento = obj['cli_documento_tipo'] ?? obj['clidocumentotipo'] ?? obj['clitipodocumento'] ?? obj['tipodocumento'] ?? usuarioObj['clidocumentotipo'] ?? 'DNI';
-  const documento = obj['cli_documento'] ?? obj['clidocumento'] ?? obj['documento'] ?? usuarioObj['clidocumento'] ?? '';
+  const tipoDocumento = obj['cli_documento_tipo'] ?? obj['clidocumentotipo'] ?? obj['clitipodocumento'] ?? obj['tipodocumento'] ?? obj['tipodocumento'] ?? obj['tipoDocumento'] ?? usuarioObj['clidocumentotipo'] ?? usuarioObj['tipodocumento'] ?? usuarioObj['tipoDocumento'] ?? 'DNI';
+  const documento = obj['cli_documento'] ?? obj['clidocumento'] ?? obj['documento'] ?? obj['document'] ?? obj['nrodocumento'] ?? obj['numerodocumento'] ?? obj['documentnumber'] ?? obj['dni'] ?? usuarioObj['clidocumento'] ?? usuarioObj['documento'] ?? usuarioObj['document'] ?? usuarioObj['nrodocumento'] ?? usuarioObj['numerodocumento'] ?? usuarioObj['documentnumber'] ?? usuarioObj['dni'] ?? '';
 
   return {
     id:            Number(obj['cli_id'] ?? obj['cliid'] ?? obj['id'] ?? 0),

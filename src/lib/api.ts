@@ -191,6 +191,8 @@ export interface UpdatePerfilData {
   usuUsername: string;
   usuEmail: string;
   cliTelefono: string | null;
+  cliTipoDocumento?: string;
+  cliDocumento?: string;
 }
 
 // [P2 FIX] Tipamos la respuesta del login correctamente
@@ -207,6 +209,13 @@ export interface LoginApiResponse {
   usuEmail?: string;
   id?: number;
   usuId?: number;
+  tipoDocumento?: string;
+  dni?: string;
+  documento?: string;
+  document?: string;
+  nroDocumento?: string;
+  numeroDocumento?: string;
+  documentNumber?: string;
 }
 
 // ── MÉTODO POST: REGISTRAR CLIENTE NUEVO ──
@@ -619,7 +628,18 @@ export interface CrearPedidoPayload {
   // Opcionales: con la pasarela automática ya no se ingresan a mano.
   NumeroYape?: string;
   CodigoAprobacion?: string;
-  Items: { VarId: number; Cantidad: number }[];
+  Items: {
+    VarId: number;
+    Cantidad: number;
+    Precio?: number;
+    precio?: number;
+    Nombre?: string;
+    nombre?: string;
+    Talla?: string;
+    talla?: string;
+    Color?: string;
+    color?: string;
+  }[];
 }
 
 export async function crearPedido(payload: CrearPedidoPayload): Promise<{ success: boolean; pedId?: number; error?: string }> {
@@ -727,7 +747,7 @@ function parsePedidoAdmin(item: any): PedidoAdmin {
     fechaCompra: String(obj['pedfechacompra'] ?? obj['ped_fecha_compra'] ?? obj['fechacompra'] ?? obj['fecha'] ?? ''),
     fechaEntrega: String(obj['pedfechaentrega'] ?? obj['ped_fecha_entrega'] ?? obj['fechaentrega'] ?? ''),
     metodoPago: String(obj['metodopago'] ?? obj['metodo_pago'] ?? 'Yape'),
-    items: Array.isArray(obj['items']) ? obj['items'].length : Number(obj['cantidaditems'] ?? obj['totalitems'] ?? 0),
+    items: Array.isArray(obj['items']) ? obj['items'].reduce((sum: number, v: any) => sum + Number(v.cantidad ?? v.Cantidad ?? 0), 0) : Number(obj['cantidaditems'] ?? obj['totalitems'] ?? 0),
   };
 }
 

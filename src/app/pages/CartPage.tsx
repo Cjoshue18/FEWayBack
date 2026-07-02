@@ -57,7 +57,14 @@ export function CartPage() {
     // 3) Creamos el pedido (queda 'pendiente' en el server).
     const pedido = await crearPedido({
       dirId: selectedDirId,
-      Items: cartItems.map((item) => ({ VarId: item.varId as number, Cantidad: item.quantity })),
+      Items: cartItems.map((item) => ({
+        VarId: item.varId as number,
+        Cantidad: item.quantity,
+        Precio: item.price,
+        Nombre: item.name,
+        Talla: item.size,
+        Color: item.color,
+      })),
     });
 
     if (!pedido.success || !pedido.pedId) {
