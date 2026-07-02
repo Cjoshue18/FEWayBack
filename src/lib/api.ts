@@ -1,6 +1,7 @@
-// Base del backend. Configurable por entorno con VITE_API_BASE (Vercel/preview/local);
-// si no está definida, cae al backend de producción por defecto.
-export const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://y2kvault-backend.onrender.com';
+// API_BASE vacío → el frontend llama a /api/* relativo al dominio donde está desplegado.
+// En Vercel, esas rutas las atiende api/[...path].js (proxy → Render + mocks de pedidos/pagos).
+// Para desarrollo local, arrancar con: npm run dev:full  (server.js en puerto 3000 + Vite)
+export const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 // ── INTERFACES EXISTENTES ──
 export interface CategoriaApi {
