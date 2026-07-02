@@ -1,7 +1,7 @@
 import React from 'react';
 import { ProductCard } from './ProductCard';
 
-// 🛠️ Extraemos dinámicamente el tipo exacto de producto que 'ProductCard' exige
+// Se extrae dinámicamente el tipo exacto de producto que 'ProductCard' exige
 type ProductCardProps = React.ComponentProps<typeof ProductCard>;
 type RealProduct = ProductCardProps['product'];
 

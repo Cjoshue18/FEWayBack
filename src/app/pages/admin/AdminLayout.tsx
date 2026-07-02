@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate, Navigate } from 'react-router'; // 🛠️ Agregado Navigate
+import { NavLink, Outlet, useNavigate, Navigate } from 'react-router'; // Se agregó Navigate
 import { LayoutDashboard, Package, Tag, Users, ShoppingBag, LogOut, Menu, X, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -13,12 +13,12 @@ import { useAuth } from '../../context/AuthContext';
   ];
   
 export function AdminLayout() {
-  // 🛠️ Extraemos 'logout' además del estado del usuario administrativo
+  // Se extraen 'logout' además del estado del usuario administrativo
   const { user, token, isAdmin, logout } = useAuth(); 
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // 🛡️ CONTROL DE ACCESO PERMANENTE
+  // �️ CONTROL DE ACCESO PERMANENTE
   // Si no hay sesión válida o no tiene rol administrativo, se le expulsa de inmediato
   if (!token || !isAdmin) {
     return <Navigate to="/" replace />;
@@ -92,7 +92,7 @@ export function AdminLayout() {
               </span>
             </div>
             <div className="min-w-0">
-              {/* 🛠️ Limpiado por completo el bloque de comentarios invasores del JSX */}
+              {/* Se limpió el bloque de comentarios invasores del JSX */}
               <p 
                 className="truncate" 
                 style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}

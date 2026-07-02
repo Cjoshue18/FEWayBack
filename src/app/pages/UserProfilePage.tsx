@@ -632,7 +632,7 @@ export function UserProfilePage() {
                   </p>
                 ) : direcciones.length === 0 ? (
                   <p className="text-xs text-gray-400">
-                    Aún no tienes direcciones guardadas. Agrega una para poder completar tus pedidos.
+                    Aún no tienes direcciones guardadas. Agrega una para poder completar los pedidos.
                   </p>
                 ) : (
                   <div className="space-y-3">

@@ -237,7 +237,7 @@ export function CartPage() {
                 ) : direcciones.length === 0 ? (
                   <p className="text-xs text-gray-400">
                     No tienes direcciones guardadas. Agrega una desde{' '}
-                    <a href="/perfil" className="text-[#7c3aed] underline">tu perfil</a>.
+                    <a href="/perfil" className="text-[#7c3aed] underline">el perfil</a>.
                   </p>
                 ) : (
                   <div className="space-y-2">

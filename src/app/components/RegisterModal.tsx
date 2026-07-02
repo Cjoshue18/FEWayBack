@@ -102,7 +102,7 @@ export function RegisterModal({ isOpen, onClose, onSwitchToLogin }: RegisterModa
               Crear Cuenta
             </h3>
             <p style={{ fontSize: '13px', color: '#9ca3af' }}>
-              Únete para gestionar tus pedidos y favoritos
+              Únete para gestionar los pedidos y favoritos
             </p>
           </div>
 

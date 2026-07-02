@@ -5,7 +5,7 @@ import { ProductCard } from '../components/ProductCard';
 import { getProductos, Product } from '@/lib/api';
 import type { ProductFilters, SortOption } from '../types/database';
 
-// 🔑 DICCIONARIO TRADUCTOR: Mapea tanto texto como IDs numéricos al destino correcto
+// DICCIONARIO TRADUCTOR: Mapea tanto texto como IDs numéricos al destino correcto
 const CATEGORY_MAP: Record<string, { id: string; label: string }> = {
   'pantalon':     { id: '1',  label: 'Pantalón' },
   'falda':        { id: '2',  label: 'Falda' },
@@ -61,7 +61,7 @@ export function CategoryPage() {
   const [filters, setFilters] = useState<ProductFilters>(DEFAULT_FILTERS);
   const [sort, setSort]       = useState<SortOption>('recientes');
 
-  // 🛠️ Resolvemos de forma segura el texto y el ID numérico que exige el backend
+  // Se resuelve de forma segura el texto y el ID numérico que exige el backend
   const urlKey = categoryId ? categoryId.toLowerCase().trim() : '';
   const resolvedCategory = CATEGORY_MAP[urlKey];
 
@@ -75,7 +75,7 @@ export function CategoryPage() {
     let active = true;
     setLoading(true);
 
-    // 🔥 CORRECCIÓN: Invocamos al nuevo método pasando el ID unificado como un objeto filtro
+    // � CORRECCIÓN: Invocamos al nuevo método pasando el ID unificado como un objeto filtro
     getProductos({ categoria: [apiId] })
       .then((data) => {
         if (active) {

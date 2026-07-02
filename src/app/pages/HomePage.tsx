@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { Header } from '../components/Header'; // 🚨 REGLA ADD: Importamos el Header real
+import { Header } from '../components/Header'; // REGLA ADD: Se importa el Header real
 import { ImageCarousel } from '../components/ImageCarousel';
 import { ProductCard } from '../components/ProductCard';
 import { getProductos } from '@/lib/api';

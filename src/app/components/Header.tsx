@@ -6,7 +6,7 @@ import { SearchOverlay } from './SearchOverlay';
 import { useAuth } from '../context/AuthContext';
 import { DesktopDropdownMenu } from './DesktopDropdownMenu';
 
-// 🔑 DEFINIMOS LAS PROPS QUE EL CONTROLADOR GLOBAL LE PASARÁ AL HEADER
+// DEFINIMOS LAS PROPS QUE EL CONTROLADOR GLOBAL LE PASARÁ AL HEADER
 interface HeaderProps {
   onOpenLogin: () => void;
 }
@@ -33,7 +33,7 @@ export function Header({ onOpenLogin }: HeaderProps) {
   }, []);
 
   const handleUserClick = () => {
-    // 🛠️ Cambiado: En lugar de abrir un estado local, dispara el modal global controlado por el Layout
+    // Actualizado: En lugar de abrir un estado local, dispara el modal global controlado por el Layout
     if (!user) { onOpenLogin(); return; }
     setIsUserMenuOpen((v) => !v);
   };
@@ -211,7 +211,7 @@ export function Header({ onOpenLogin }: HeaderProps) {
   <nav className="md:hidden mt-4 pb-4 flex flex-col gap-5 border-t border-gray-100 pt-4" style={{ fontSize: 13 }}>
     <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="text-gray-700 tracking-widest uppercase">Inicio</Link>
     
-    {/* 🔑 NUEVO EN MOBILE */}
+    {/* NUEVO EN MOBILE */}
     <Link to="/catalogo" onClick={() => setIsMobileMenuOpen(false)} className="text-gray-700 tracking-widest uppercase">Catálogo</Link>
     
     <button
@@ -228,7 +228,7 @@ export function Header({ onOpenLogin }: HeaderProps) {
                 <Search className="w-4 h-4" /> Buscar
               </button>
               {!user ? (
-                // 🛠️ Cambiado: Mobile también aprovecha la prop controlada
+                // Actualizado: Mobile también aprovecha la prop controlada
                 <button onClick={() => { setIsMobileMenuOpen(false); onOpenLogin(); }} className="flex items-center gap-2 text-[#7c3aed] tracking-widest uppercase">
                   <User className="w-4 h-4" /> Iniciar sesión
                 </button>
@@ -248,7 +248,7 @@ export function Header({ onOpenLogin }: HeaderProps) {
       </header>
 
       <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
-      {/* 🛡️ MODAL INTERNO RETIRADO: Ahora se gestiona puramente desde RootLayout.tsx */}
+      {/* �️ MODAL INTERNO RETIRADO: Ahora se gestiona puramente desde RootLayout.tsx */}
     </>
   );
 }

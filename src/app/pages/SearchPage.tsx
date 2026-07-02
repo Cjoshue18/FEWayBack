@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FilterSidebar } from '@/app/components/FilterSidebar';
 import { ProductGrid } from '@/app/components/ProductGrid';
-import { getProductos, type Product } from '@/lib/api'; // 🚨 Importamos el método de la API real
+import { getProductos, type Product } from '@/lib/api'; // Se importa el método de la API real
 
 export function SearchPage() {
   // Estado dinámico para almacenar los productos del servidor
@@ -17,7 +17,7 @@ export function SearchPage() {
     colors: [] as number[],     
   });
 
-  // 🚨 LLAMADA A LA API REAL AL MONTAR EL COMPONENTE 🚨
+  // LLAMADA A LA API REAL AL MONTAR EL COMPONENTE 🚨
   useEffect(() => {
     getProductos().then((data) => {
       setAllProducts(data);

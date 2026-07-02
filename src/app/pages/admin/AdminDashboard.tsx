@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Package, Users, ShoppingBag, Tag, TrendingUp, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-// 🛠️ Importamos tus funciones de comunicación directa con .NET
+// Se importan las funciones de comunicación directa con .NET
 import { getProductos, getClientes, getCategorias, getPedidosAdmin, getIngresosSemanales } from '@/lib/api';
 import type { PedidoAdmin, IngresoDiario } from '@/lib/api';
 
@@ -42,7 +42,7 @@ export function AdminDashboard() {
           setMetrics({
             productosCount: listaProductos.length,
             clientesCount: listaClientes.length,
-            categoriasCount: listaCategorias.length || 11, // Fallback a tus 11 estáticas
+            categoriasCount: listaCategorias.length || 11, // Fallback a las 11 estáticas
             pedidosCount: listaPedidos.length,
           });
           setAllOrders(listaPedidos);

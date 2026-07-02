@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Outlet } from 'react-router';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
-import { LoginModal } from '../components/LoginModal';       // 🔑 Importamos el modal de Login
-import { RegisterModal } from '../components/RegisterModal'; // 🔑 Importamos el nuevo modal de Registro
+import { LoginModal } from '../components/LoginModal';       // Se importa el modal de Login
+import { RegisterModal } from '../components/RegisterModal'; // Se importa el nuevo modal de Registro
 
 export function RootLayout() {
   // ── ESTADOS DE CONTROL PARA LOS MODALES ──
