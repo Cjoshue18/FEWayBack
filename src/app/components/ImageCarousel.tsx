@@ -8,21 +8,21 @@ const slides = [
     eyebrow: 'Wayback · SS25',
     title: 'No es vintage.\nEs eterno.',
     cta: 'Explorar',
-    ctaPath: '/categoria/camisetas',
+    ctaPath: '/catalogo?categoria=5',
   },
   {
     url: 'https://res.cloudinary.com/duxjpbmhs/image/upload/c_scale,w_1800,e_upscale,f_auto,q_auto/v1781327253/jpg_1_f6ifge.jpg',
     eyebrow: 'Colección Denim',
     title: 'Construido\npara quedar.',
     cta: 'Ver Sets Denim',
-    ctaPath: '/categoria/sets-denim',
+    ctaPath: '/catalogo?categoria=9',
   },
   {
-    url: 'https://i.pinimg.com/1200x/63/6c/75/636c75518cd7ce7266abbdbfc956a1b7.jpg5',
+    url: 'https://i.pinimg.com/1200x/63/6c/75/636c75518cd7ce7266abbdbfc956a1b7.jpg',
     eyebrow: 'Wayback Sets',
     title: 'Vestir fácil.\nDestacar siempre.',
     cta: 'Ver Colecciones',
-    ctaPath: '/categoria/sets-baggy',
+    ctaPath: '/catalogo?categoria=8',
   },
 ];
 

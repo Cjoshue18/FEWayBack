@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { Header } from '../components/Header'; // 🚨 REGLA ADD: Importamos el Header real
+import { Header } from '../components/Header'; // REGLA ADD: Se importa el Header real
 import { ImageCarousel } from '../components/ImageCarousel';
 import { ProductCard } from '../components/ProductCard';
 import { getProductos } from '@/lib/api';
@@ -38,9 +38,9 @@ export function HomePage() {
     let active = true;
     setLoading(true);
 
-    getProductos()
+    getProductos({ pagina: 1, registrosPorPagina: SELECCION_LIMIT })
       .then((res) => {
-        if (active) setProductos((res ?? []).slice(0, SELECCION_LIMIT));
+        if (active) setProductos((res.elementos ?? []));
       })
       .catch((err) => console.error('Error cargando la selección Para ti:', err))
       .finally(() => {

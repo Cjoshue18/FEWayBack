@@ -1,35 +1,30 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { X, ChevronRight } from 'lucide-react';
+import { getCategorias } from '@/lib/api';
+import type { Categoria } from '@/lib/api';
 
 interface CategoryMenuProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const CATEGORIAS = [
-  { id: 'pantalon', label: 'Pantalón' },
-  { id: 'falda', label: 'Falda' },
-  { id: 'shorts', label: 'Shorts' },
-  { id: 'jogger', label: 'Jogger' },
-  { id: 'camisetas', label: 'Camisetas' },
-  { id: 'sueteres', label: 'Suéteres' },
-  { id: 'chaquetas', label: 'Chaquetas' },
-  { id: 'sets-baggy', label: 'Sets Baggy' },
-  { id: 'sets-denim', label: 'Sets Denim' },
-  { id: 'sets-deportivos', label: 'Sets Deportivos' },
-  { id: 'sets-tejidos', label: 'Sets Tejidos' },
-];
-
 export function CategoryMenu({
   isOpen,
   onClose,
 }: CategoryMenuProps) {
   const navigate = useNavigate();
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
 
-  const go = (id: string) => {
-    navigate(`/categoria/${id}`);
+  useEffect(() => {
+    getCategorias().then(setCategorias).catch(console.error);
+  }, []);
+
+  const go = (id: number) => {
+    navigate(`/catalogo?categoria=${id}`);
     onClose();
   };
+
 
   return (
     <>
@@ -103,10 +98,10 @@ export function CategoryMenu({
               Categorías
             </p>
 
-            {CATEGORIAS.map((cat) => (
+            {categorias.map((cat) => (
               <button
-                key={cat.id}
-                onClick={() => go(cat.id)}
+                key={cat.cat_id}
+                onClick={() => go(cat.cat_id)}
                 className="flex items-center justify-between w-full px-3 py-3.5 group hover:bg-[rgba(124,58,237,0.05)] transition-colors"
                 style={{ borderRadius: 6 }}
               >
@@ -118,7 +113,7 @@ export function CategoryMenu({
                     color: '#374151',
                   }}
                 >
-                  {cat.label}
+                  {cat.cat_nombre}
                 </span>
 
                 <ChevronRight

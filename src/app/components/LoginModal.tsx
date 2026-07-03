@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSwitchToRegister: () => void; // 🔑 AÑADE ESTA LÍNEA DE CABLEADO
+  onSwitchToRegister: () => void; // AÑADE ESTA LÍNEA DE CABLEADO
 }
 
 export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalProps) {
@@ -212,17 +212,17 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
               </button>
             </form>
 
-            {/* 🛠️ ENLACE DE REGISTRO NUEVO AJUSTADO AL DISEÑO EDITORIAL */}
+            {/* Enlace de registro ajustado al diseño */}
             <p
   className="text-center mt-5"
-  style={{ fontSize: '13px', color: '#4b5563', letterSpacing: '-0.01em' }} // 🛠️ Corregido a string y letterSpacing
+  style={{ fontSize: '13px', color: '#4b5563', letterSpacing: '-0.01em' }} // Se corrigió a string y letterSpacing
 >
   ¿No tienes una cuenta?{' '}
   <button
   type="button"
   onClick={() => {
     handleClose(); // Resetea campos e internos del modal anterior
-    onSwitchToRegister(); // 🔑 Activa la transición limpia al Modal de registro
+    onSwitchToRegister(); // Activa la transición limpia al Modal de registro
   }}
   className="font-bold hover:underline bg-transparent border-none p-0 cursor-pointer text-[#7c3aed]"
 >
@@ -244,7 +244,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
               style={{ background: '#fafafa', border: '1px solid #e5e7eb' }}
             >
               <p style={{ fontSize: 11, color: '#6b7280' }}>
-                Conectado en vivo a la base de datos de <span className="font-semibold text-[#7c3aed]">Y2KVault API</span>.
+                Conectado en vivo a la base de datos de <span className="font-semibold text-[#7c3aed]">Wayback API</span>.
               </p>
             </div>
           </div>

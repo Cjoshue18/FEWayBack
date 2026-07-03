@@ -10,12 +10,13 @@ import {
   useProfile, useDirecciones,
   type UpdateProfilePayload, type Direccion, type DireccionPayload
 } from '../hooks/useProfile';
+import { getMisPedidos, getPedidoDetalleCliente, type PedidoHistorial, type PedidoDetalleCliente } from '@/lib/api';
 import { useUbigeo } from '../hooks/useUbigeo';
 import { SearchBox } from '@mapbox/search-js-react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ?? '';
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '';
 const LIMA_CENTER: [number, number] = [-77.0428, -12.0464];
 const MAPBOX_THEME = {
   variables: {
@@ -28,6 +29,7 @@ const MAPBOX_THEME = {
     boxShadow: 'none',
   },
 };
+const MAPBOX_SEARCH_OPTIONS = { country: 'PE', language: 'es', types: 'address,street' };
 const INPUT_CLS = 'w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/30 focus:border-[#7c3aed] bg-white';
 
 // ── SKELETON DE CARGA ELEGANTE ──
@@ -189,25 +191,29 @@ function EditProfileModal({
 
 // ── MODAL DE DIRECCIÓN AVANZADO (AUTOFILL UBIGEO + PIN ARRASTRABLE) ──
 function DireccionFormModal({
-  initialData,
+  mode,
+  direccion,
   saving,
   onSave,
   onClose,
 }: {
-  initialData: {
-    DirCalle: string;
-    DirDistrito: string;
-    DirProvincia: string;
-    DirDepartamento: string;
-    DirReferencia: string;
-    DirPreferido: boolean;
-  };
+  mode: 'create' | 'edit';
+  direccion?: Direccion;
   saving: boolean;
   onSave: (payload: DireccionPayload) => Promise<{ success: boolean; error?: string }>;
   onClose: () => void;
 }) {
   const { departamentos, getProvincias, getDistritos, findExact, loading: ubigeoLoading } = useUbigeo();
-  const [form, setForm]       = useState<DireccionPayload>(initialData);
+  const [form, setForm]       = useState<DireccionPayload>(() => 
+    direccion ? {
+      DirCalle: direccion.dirCalle,
+      DirDistrito: direccion.dirDistrito,
+      DirProvincia: direccion.dirProvincia,
+      DirDepartamento: direccion.dirDepartamento,
+      DirReferencia: direccion.dirReferencia,
+      DirPreferido: direccion.dirPreferido,
+    } : { DirCalle: '', DirDistrito: '', DirProvincia: '', DirDepartamento: '', DirReferencia: '', DirPreferido: false }
+  );
   const [saved, setSaved]     = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -332,7 +338,7 @@ function DireccionFormModal({
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Calle / Av. *</label>
               <SearchBox
                 accessToken={MAPBOX_TOKEN}
-                options={{ country: 'PE', language: 'es', types: 'address,street' }}
+                options={MAPBOX_SEARCH_OPTIONS}
                 theme={MAPBOX_THEME}
                 placeholder="Busca tu calle o arrastra el marcador..."
                 value={form.DirCalle}
@@ -421,6 +427,56 @@ export function UserProfilePage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [direccionModal, setDireccionModal] = useState<{ mode: 'create' | 'edit'; direccion?: Direccion } | null>(null);
 
+  // ── ESTADO PARA ÓRDENES Y EXPANSIÓN ──
+  const [pedidos, setPedidos] = useState<PedidoHistorial[]>([]);
+  const [pedidosLoading, setPedidosLoading] = useState(true);
+  
+  const [pedidosPage, setPedidosPage] = useState(1);
+  const [pedidosTotalPages, setPedidosTotalPages] = useState(1);
+  const [pedidosTotalRegistros, setPedidosTotalRegistros] = useState(0);
+  const PEDIDOS_PER_PAGE = 5;
+  
+  const [showAllDirecciones, setShowAllDirecciones] = useState(false);
+
+  const [viewingOrderId, setViewingOrderId] = useState<number | null>(null);
+  const [orderDetalle, setOrderDetalle] = useState<PedidoDetalleCliente | null>(null);
+  const [detalleLoading, setDetalleLoading] = useState(false);
+
+  useEffect(() => {
+    if (viewingOrderId === null) {
+      setOrderDetalle(null);
+      return;
+    }
+    let active = true;
+    setDetalleLoading(true);
+    getPedidoDetalleCliente(viewingOrderId).then((data) => {
+      if (active) {
+        setOrderDetalle(data);
+        setDetalleLoading(false);
+      }
+    });
+    return () => { active = false; };
+  }, [viewingOrderId]);
+
+  useEffect(() => {
+    async function fetchPedidos() {
+      setPedidosLoading(true);
+      try {
+        const data = await getMisPedidos(pedidosPage, PEDIDOS_PER_PAGE);
+        setPedidos(data.elementos ?? []);
+        setPedidosTotalPages(data.totalPaginas || 1);
+        setPedidosTotalRegistros(data.totalRegistros || 0);
+      } catch (err) {
+        console.error('Error fetching pedidos', err);
+      } finally {
+        setPedidosLoading(false);
+      }
+    }
+    if (user) {
+      fetchPedidos();
+    }
+  }, [user, pedidosPage]);
+
   if (!user) return <ProfileSkeleton />;
 
   // Mapeos blindados multicapa para evitar fallos de llaves vacías o desincronizadas de DNI
@@ -496,22 +552,64 @@ export function UserProfilePage() {
 
       {direccionModal && (
         <DireccionFormModal
-          initialData={
-            direccionModal.direccion
-              ? {
-                  DirCalle: direccionModal.direccion.dirCalle,
-                  DirDistrito: direccionModal.direccion.dirDistrito,
-                  DirProvincia: direccionModal.direccion.dirProvincia,
-                  DirDepartamento: direccionModal.direccion.dirDepartamento,
-                  DirReferencia: direccionModal.direccion.dirReferencia,
-                  DirPreferido: direccionModal.direccion.dirPreferido,
-                }
-              : { DirCalle: '', DirDistrito: '', DirProvincia: '', DirDepartamento: '', DirReferencia: '', DirPreferido: false }
-          }
+          mode={direccionModal.mode}
+          direccion={direccionModal.direccion}
           saving={direccionSaving}
           onSave={handleSaveDireccion}
           onClose={() => setDireccionModal(null)}
         />
+      )}
+
+      {viewingOrderId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setViewingOrderId(null)} />
+          <div className="relative z-10 bg-white w-full overflow-y-auto" style={{ maxWidth: 500, maxHeight: '90vh', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #f3f4f6' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>Pedido #{viewingOrderId}</h3>
+              <button onClick={() => setViewingOrderId(null)} className="text-gray-300 hover:text-gray-600"><X style={{ width: 16, height: 16 }} /></button>
+            </div>
+
+            {detalleLoading || !orderDetalle ? (
+              <div className="p-10 text-center" style={{ fontSize: 13, color: '#9ca3af' }}>Cargando detalle…</div>
+            ) : (
+              <div className="p-6 flex flex-col gap-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoRow label="Estado" value={orderDetalle.estado} />
+                  <InfoRow label="Fecha compra" value={orderDetalle.fechaCompra} />
+                  <InfoRow label="Fecha entrega" value={orderDetalle.fechaEntrega ?? 'No programada'} />
+                  <InfoRow label="Dirección" value={orderDetalle.direccion} />
+                  <InfoRow label="Método de Pago" value={orderDetalle.metodoPago} />
+                  <InfoRow label="Artículos" value={String(orderDetalle.items.reduce((acc, i) => acc + i.cantidad, 0))} />
+                </div>
+
+                {orderDetalle.items.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: '#9ca3af', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Productos
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {orderDetalle.items.map((it, i) => (
+                        <div key={i} className="flex items-center justify-between" style={{ fontSize: 12, color: '#374151' }}>
+                          <span>{it.nombre} — {it.talla} / {it.color} × {it.cantidad}</span>
+                          <span style={{ fontWeight: 700 }}>S/ {it.subtotal.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: '#9ca3af', textTransform: 'uppercase', marginBottom: 8 }}>Total</p>
+                  <p style={{ fontSize: 22, fontWeight: 800, color: '#111' }}>S/ {orderDetalle.total.toFixed(2)}</p>
+                </div>
+
+                <button onClick={() => setViewingOrderId(null)} className="py-2.5 border border-gray-200 text-gray-600 hover:border-gray-400 transition-colors" style={{ fontSize: 12 }}>
+                  Cerrar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       <div className="min-h-screen bg-gray-50 py-8">
@@ -556,7 +654,7 @@ export function UserProfilePage() {
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600 font-medium">Órdenes totales</span>
-                    <span className="font-bold text-[#7c3aed]">3</span>
+                    <span className="font-bold text-[#7c3aed]">{pedidos.length}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600 font-medium">Favoritos</span>
@@ -616,11 +714,11 @@ export function UserProfilePage() {
                   </p>
                 ) : direcciones.length === 0 ? (
                   <p className="text-xs text-gray-400">
-                    Aún no tienes direcciones guardadas. Agrega una para poder completar tus pedidos.
+                    Aún no tienes direcciones guardadas. Agrega una para poder completar los pedidos.
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {direcciones.map((dir, index) => (
+                    {(showAllDirecciones ? direcciones : direcciones.slice(0, 3)).map((dir, index) => (
                       <div
                         key={`${dir.dirId || 'new'}-${index}`}
                         className="flex items-start justify-between gap-3 p-3 rounded-xl border border-[rgba(124,58,237,0.1)] hover:bg-gray-50/50 transition-colors"
@@ -657,41 +755,86 @@ export function UserProfilePage() {
                         </div>
                       </div>
                     ))}
+                    {direcciones.length > 3 && (
+                      <button
+                        onClick={() => setShowAllDirecciones(!showAllDirecciones)}
+                        className="w-full mt-4 py-2 border border-dashed border-[#7c3aed]/30 text-[#7c3aed] text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-[#7c3aed]/5 transition-colors"
+                      >
+                        {showAllDirecciones ? 'Mostrar menos' : `Ver todas mis direcciones (${direcciones.length})`}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Historial Estático Temporal */}
+              {/* Historial Real */}
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
                 <h3 className="text-base font-bold uppercase tracking-wider text-gray-900 mb-6">Órdenes Recientes</h3>
-                <div className="space-y-4">
-                  {[
-                    { id: '#WAY-2026-003', date: '12 Jun 2026', status: 'En preparación', amount: 'S/ 189.00', items: 1 },
-                    { id: '#WAY-2026-002', date: '28 May 2026', status: 'Entregado', amount: 'S/ 320.00', items: 2 },
-                    { id: '#WAY-2026-001', date: '10 May 2026', status: 'Entregado', amount: 'S/ 95.00', items: 1 },
-                  ].map((order) => (
-                    <div
-                      key={order.id}
-                      className="flex items-center justify-between p-4 rounded-xl border border-[rgba(124,58,237,0.08)] hover:border-[rgba(124,58,237,0.2)] transition-colors"
-                    >
-                      <div className="flex-1">
-                        <p className="font-bold text-sm text-gray-900 mb-0.5">{order.id}</p>
-                        <p className="text-xs text-gray-400 font-medium">{order.date} • {order.items} {order.items === 1 ? 'artículo' : 'artículos'}</p>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-right">
-                          <p className="font-bold text-sm text-gray-900">{order.amount}</p>
-                          <p className={`text-xs font-bold uppercase tracking-wider ${order.status === 'Entregado' ? 'text-green-600' : 'text-[#7c3aed]'}`}>
-                            {order.status}
-                          </p>
+                {pedidosLoading ? (
+                  <p className="text-xs text-gray-400 flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Cargando órdenes…
+                  </p>
+                ) : pedidos.length === 0 ? (
+                  <p className="text-xs text-gray-400">
+                    Aún no has realizado ninguna orden. ¡Explora nuestro catálogo y haz tu primer pedido!
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {pedidos.map((order) => {
+                      const date = new Date(order.fechaCompra).toLocaleDateString('es-PE', {
+                        day: 'numeric', month: 'short', year: 'numeric'
+                      });
+                      const statusLower = order.estado.toLowerCase();
+                      const isCompleted = statusLower === 'entregado' || statusLower === 'aceptado';
+
+                      return (
+                        <div
+                          key={order.id}
+                          className="flex items-center justify-between p-4 rounded-xl border border-[rgba(124,58,237,0.08)] hover:border-[rgba(124,58,237,0.2)] transition-colors"
+                        >
+                          <div className="flex-1">
+                            <p className="font-bold text-sm text-gray-900 mb-0.5">#WAY-{order.id.toString().padStart(4, '0')}</p>
+                            <p className="text-xs text-gray-400 font-medium">{date}</p>
+                          </div>
+                          <div className="flex items-center gap-6">
+                            <div className="text-right">
+                              <p className="font-bold text-sm text-gray-900">S/ {order.total.toFixed(2)}</p>
+                              <p className={`text-xs font-bold uppercase tracking-wider ${isCompleted ? 'text-green-600' : 'text-[#7c3aed]'}`}>
+                                {order.estado}
+                              </p>
+                            </div>
+                            <button onClick={() => setViewingOrderId(order.id)} className="text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-black transition-colors" title="Ver detalle del pedido">
+                              Detalles
+                            </button>
+                          </div>
                         </div>
-                        <button className="text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-black transition-colors">
-                          Detalles
+                      );
+                    })}
+                    
+                    {/* Pagination Controls */}
+                    {pedidosTotalPages > 1 && (
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+                        <button 
+                          onClick={() => setPedidosPage(p => Math.max(1, p - 1))}
+                          disabled={pedidosPage === 1}
+                          className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-[#7c3aed] disabled:opacity-40 disabled:hover:text-slate-600 transition-colors bg-white px-3 py-1.5 rounded-md border border-slate-200"
+                        >
+                          Anterior
+                        </button>
+                        <span className="text-xs text-slate-500 font-medium">
+                          Página {pedidosPage} de {pedidosTotalPages} ({pedidosTotalRegistros} pedidos)
+                        </span>
+                        <button 
+                          onClick={() => setPedidosPage(p => Math.min(pedidosTotalPages, p + 1))}
+                          disabled={pedidosPage === pedidosTotalPages}
+                          className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-[#7c3aed] disabled:opacity-40 disabled:hover:text-slate-600 transition-colors bg-white px-3 py-1.5 rounded-md border border-slate-200"
+                        >
+                          Siguiente
                         </button>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-[rgba(124,58,237,0.15)]">
@@ -717,5 +860,14 @@ export function UserProfilePage() {
         </div>
       </div>
     </>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: '#9ca3af', textTransform: 'uppercase', marginBottom: 4 }}>{label}</p>
+      <p style={{ fontSize: 13, color: '#111' }}>{value || '—'}</p>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, Plus } from 'lucide-react';
 import { useFavorites } from '@/app/hooks/useFavorites';
 import { ProductQuickViewModal } from '@/app/components/ProductQuickViewModal';
@@ -10,6 +10,7 @@ export interface ProductVariante {
   colorNombre: string;
   colorHex: string;
   varStock: number;
+  varImgUrl?: string;
 }
 
 export interface Product {
@@ -24,7 +25,8 @@ export interface Product {
   proDescuento?: number;
   proDescuentoInicio?: string;
   proDescuentoFin?: string;
-  colors?: (number | string)[];
+  colors?: string[];
+  colorDots?: { hex: string, imgUrl?: string }[];
   tallas?: string[];
   variantes?: ProductVariante[];
 }
@@ -58,6 +60,21 @@ export function ProductCard({ product }: ProductCardProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const wishlisted = isFavorite(product.id);
   const { activo: descuentoActivo, precioFinal } = calcularDescuento(product);
+  const [selectedColorImg, setSelectedColorImg] = useState<string | null>(null);
+
+  // Preload de imágenes para que el hover sea instantáneo
+  useEffect(() => {
+    if (product.colorDots) {
+      product.colorDots.forEach(dot => {
+        if (dot.imgUrl) {
+          const img = new Image();
+          img.src = dot.imgUrl;
+        }
+      });
+    }
+  }, [product.colorDots]);
+
+  const displayedImage = selectedColorImg || product.image;
 
   return (
     <>
@@ -92,10 +109,10 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {/* main image */}
           <img
-            src={product.image}
+            src={displayedImage}
             alt={product.name}
             className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out"
-            style={{ opacity: isHovered && product.hoverImage ? 0 : 1 }}
+            style={{ opacity: isHovered && product.hoverImage && !selectedColorImg ? 0 : 1 }}
           />
 
           {/* hover / alternate image — smooth fade */}
@@ -165,6 +182,44 @@ export function ProductCard({ product }: ProductCardProps) {
             <Plus className="w-3.5 h-3.5" strokeWidth={3} />
           </button>
         </div>
+
+        {/* ── Color Dots (Ripley Style) ── */}
+        {product.colorDots && product.colorDots.length > 0 && (
+          <div className="px-3.5 pb-3.5 flex items-center gap-1.5 flex-wrap">
+            {product.colorDots.slice(0, 4).map((dot, index) => {
+              const isMulti = index === 3 && product.colorDots!.length > 4;
+              if (isMulti) {
+                return (
+                  <button
+                    key="multi"
+                    onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
+                    className="w-5 h-5 rounded-full border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                    style={{ background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }}
+                    title="Ver más colores"
+                  >
+                    <span className="text-[11px] font-bold text-white shadow-sm mix-blend-difference">+</span>
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  key={dot.hex}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (dot.imgUrl) setSelectedColorImg(dot.imgUrl);
+                  }}
+                  onMouseEnter={() => {
+                    if (dot.imgUrl) setSelectedColorImg(dot.imgUrl);
+                  }}
+                  className={`w-5 h-5 rounded-full border transition-transform hover:scale-110 ${selectedColorImg === dot.imgUrl || (!selectedColorImg && index === 0) ? 'border-gray-800 scale-110' : 'border-gray-300'}`}
+                  style={{ backgroundColor: dot.hex }}
+                  title={dot.hex}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {modalOpen && (

@@ -18,7 +18,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
       <SheetContent side="right" className="flex flex-col">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2 text-[#7c3aed]">
-            <ShoppingBag className="w-5 h-5" /> Agregado al carrito
+            <ShoppingBag className="w-5 h-5" /> Se agregó al carrito
           </SheetTitle>
         </SheetHeader>
 

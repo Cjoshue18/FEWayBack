@@ -129,7 +129,7 @@ export function useProfile() {
       if (msg.includes('401') || msg.includes('403')) {
         setError('Tu sesión expiró. Por favor vuelve a iniciar sesión.');
       } else {
-        setError('No se pudo cargar tu perfil. Verifica tu conexión e intenta de nuevo.');
+        setError('No se pudo cargar el perfil. Verifica tu conexión e intenta de nuevo.');
       }
     } finally {
       setLoading(false);

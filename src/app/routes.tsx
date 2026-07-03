@@ -23,7 +23,7 @@ export const router = createBrowserRouter([
     Component: RootLayout,
     children: [
       { index: true, Component: HomePage },
-      { path: 'categoria/:categoryId', Component: CategoryPage }, // 🔑 Mapea directo a tu página funcional
+      { path: 'categoria/:categoryId', Component: CategoryPage }, // Mapea directo a tu página funcional
       { path: 'catalogo', Component: CatalogoPage }, // Deja el catálogo limpio para "Ver todo"
       { path: 'contacto', Component: ContactoPage },
       { path: 'perfil', Component: UserProfilePage },

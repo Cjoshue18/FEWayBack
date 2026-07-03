@@ -1,27 +1,16 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Check, ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react';
+import { Slider } from '@/app/components/ui/slider';
+import { getCategorias, getEstilos, getColores } from '@/lib/api';
+import type { Categoria, Estilo, Color } from '@/lib/api';
 
 interface FilterSidebarProps {
   filters: any;
   setFilters: (filters: any) => void;
-  // CategoryPage ya fija la categoría por la URL: ahí no aplica mostrar el filtro de "Prendas".
   showCategorias?: boolean;
 }
 
-const CATEGORIAS_TIENDA = [
-  'Pantalón', 'Falda', 'Shorts', 'Jogger', 'Camisetas', 'Suéteres', 'Chaquetas', 'Sets Baggy', 'Sets Denim'
-];
-
-const COLORS = [
-  { id: 1,  nombre: 'Blanco',   hex: '#FFFFFF' },
-  { id: 2,  nombre: 'Negro',    hex: '#000000' },
-  { id: 3,  nombre: 'Azul',     hex: '#0000FF' },
-  { id: 4,  nombre: 'Verde',    hex: '#008000' },
-  { id: 5,  nombre: 'Amarillo', hex: '#FFFF00' },
-  { id: 6,  nombre: 'Rojo',     hex: '#FF0000' },
-  { id: 7,  nombre: 'Rosa',     hex: '#FFC0CB' },
-  { id: 8,  nombre: 'Morado',   hex: '#800080' },
-];
+// Colors are now fetched dynamically
 
 const TALLAS = ['S', 'M', 'L', 'XL'];
 const SEXOS  = ['Mujer', 'Hombre', 'Unisex'];
@@ -44,23 +33,32 @@ function Divider() {
 }
 
 export function FilterSidebar({ filters, setFilters, showCategorias = true }: FilterSidebarProps) {
-  const [expanded, setExpanded] = useState({ categorias: true, genero: true, color: true, talla: true, disponibilidad: true, precio: true });
+  const [expanded, setExpanded] = useState({ categorias: true, estilos: true, genero: true, color: true, talla: true, disponibilidad: true, precio: true });
   const toggle = (k: keyof typeof expanded) => setExpanded((p) => ({ ...p, [k]: !p[k] }));
 
-  const normalizarFiltro = (str: string) => 
-    str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const [categoriasList, setCategoriasList] = useState<Categoria[]>([]);
+  const [estilosList, setEstilosList] = useState<Estilo[]>([]);
+  const [coloresList, setColoresList] = useState<Color[]>([]);
 
-  // ── 🔑 TIPADO DE PARAMETROS INTERNOS ANÓNIMOS (SOLUCIÓN AL ERROR 7006) ──
-  const toggleCategoria = (c: string) => {
+  useEffect(() => {
+    getCategorias().then(setCategoriasList).catch(console.error);
+    getEstilos().then(setEstilosList).catch(console.error);
+    getColores().then(setColoresList).catch(console.error);
+  }, []);
+
+  const toggleCategoria = (id: string) => {
     const actuales: string[] = Array.isArray(filters.categorias) ? filters.categorias : [];
-    const normaC = normalizarFiltro(c);
-    const existe = actuales.some((x: string) => normalizarFiltro(x) === normaC);
-    
     setFilters({ 
       ...filters, 
-      categorias: existe 
-        ? actuales.filter((x: string) => normalizarFiltro(x) !== normaC) 
-        : [...actuales, normaC] 
+      categorias: actuales.includes(id) ? actuales.filter((x: string) => x !== id) : [...actuales, id] 
+    });
+  };
+
+  const toggleEstilo = (id: string) => {
+    const actuales: string[] = Array.isArray(filters.estilos) ? filters.estilos : [];
+    setFilters({ 
+      ...filters, 
+      estilos: actuales.includes(id) ? actuales.filter((x: string) => x !== id) : [...actuales, id] 
     });
   };
 
@@ -91,13 +89,15 @@ export function FilterSidebar({ filters, setFilters, showCategorias = true }: Fi
 
   const hasActive =
     (filters.categorias?.length ?? 0) > 0 || 
+    (filters.estilos?.length ?? 0) > 0 || 
     (filters.sexo?.length ?? 0) > 0 || 
     (filters.colors?.length ?? 0) > 0 || 
     (filters.tallas?.length ?? 0) > 0 || 
     filters.soloDisponibles || 
+    filters.precioMin > PRECIO_MIN ||
     filters.precioMax < PRECIO_MAX;
 
-  const resetAll = () => setFilters({ categorias: [], sexo: [], colors: [], tallas: [], soloDisponibles: false, precioMin: PRECIO_MIN, precioMax: PRECIO_MAX });
+  const resetAll = () => setFilters({ categorias: [], estilos: [], sexo: [], colors: [], tallas: [], soloDisponibles: false, precioMin: PRECIO_MIN, precioMax: PRECIO_MAX });
 
   return (
     <aside style={{ width: 220, flexShrink: 0 }}>
@@ -118,22 +118,23 @@ export function FilterSidebar({ filters, setFilters, showCategorias = true }: Fi
 
         <div className="flex flex-col" style={{ gap: 16, marginTop: 16 }}>
           
-          {/* Categorías — no aplica en CategoryPage, ya fijada por la URL */}
+          {/* Categorías */}
           {showCategorias && (
             <>
               <div>
                 <SectionHeader label="Prendas" expanded={expanded.categorias} onToggle={() => toggle('categorias')} />
                 {expanded.categorias && (
                   <div className="flex flex-col mt-3" style={{ gap: 6 }}>
-                    {CATEGORIAS_TIENDA.map((c: string) => {
+                    {categoriasList.map((c) => {
                       const actuales: string[] = Array.isArray(filters.categorias) ? filters.categorias : [];
-                      const active = actuales.some((x: string) => normalizarFiltro(x) === normalizarFiltro(c));
+                      const idStr = String(c.cat_id);
+                      const active = actuales.includes(idStr);
                       return (
-                        <button type="button" key={c} onClick={() => toggleCategoria(c)} className="flex items-center gap-2.5 text-left transition-colors group">
+                        <button type="button" key={c.cat_id} onClick={() => toggleCategoria(idStr)} className="flex items-center gap-2.5 text-left transition-colors group">
                           <span style={{ width: 14, height: 14, border: `1.5px solid ${active ? '#7c3aed' : '#d1d5db'}`, background: active ? '#7c3aed' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             {active && <svg viewBox="0 0 10 10" fill="none" style={{ width: 8, height: 8 }}><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           </span>
-                          <span style={{ fontSize: 13, color: active ? '#7c3aed' : '#6b7280', fontWeight: active ? 600 : 400 }} className="group-hover:text-[#7c3aed] transition-colors">{c}</span>
+                          <span style={{ fontSize: 13, color: active ? '#7c3aed' : '#6b7280', fontWeight: active ? 600 : 400 }} className="group-hover:text-[#7c3aed] transition-colors">{c.cat_nombre}</span>
                         </button>
                       );
                     })}
@@ -145,6 +146,30 @@ export function FilterSidebar({ filters, setFilters, showCategorias = true }: Fi
             </>
           )}
 
+          {/* Estilos */}
+          <div>
+            <SectionHeader label="Estilos" expanded={expanded.estilos} onToggle={() => toggle('estilos')} />
+            {expanded.estilos && (
+              <div className="flex flex-col mt-3" style={{ gap: 6 }}>
+                {estilosList.map((e) => {
+                  const actuales: string[] = Array.isArray(filters.estilos) ? filters.estilos : [];
+                  const idStr = String(e.est_id);
+                  const active = actuales.includes(idStr);
+                  return (
+                    <button type="button" key={e.est_id} onClick={() => toggleEstilo(idStr)} className="flex items-center gap-2.5 text-left transition-colors group">
+                      <span style={{ width: 14, height: 14, border: `1.5px solid ${active ? '#7c3aed' : '#d1d5db'}`, background: active ? '#7c3aed' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {active && <svg viewBox="0 0 10 10" fill="none" style={{ width: 8, height: 8 }}><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                      </span>
+                      <span style={{ fontSize: 13, color: active ? '#7c3aed' : '#6b7280', fontWeight: active ? 600 : 400 }} className="group-hover:text-[#7c3aed] transition-colors">{e.est_nombre}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <Divider />
+
           {/* Género */}
           <div>
             <SectionHeader label="Género" expanded={expanded.genero} onToggle={() => toggle('genero')} />
@@ -155,8 +180,8 @@ export function FilterSidebar({ filters, setFilters, showCategorias = true }: Fi
                   const active = actuales.includes(s);
                   return (
                     <button type="button" key={s} onClick={() => toggleSexo(s)} className="flex items-center gap-2.5 text-left transition-colors group">
-                      <span style={{ width: 14, height: 14, border: `1.5px solid ${active ? '#7c3aed' : '#d1d5db'}`, background: active ? '#7c3aed' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {active && <svg viewBox="0 0 10 10" fill="none" style={{ width: 8, height: 8 }}><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                      <span style={{ width: 14, height: 14, borderRadius: '50%', border: `1.5px solid ${active ? '#7c3aed' : '#d1d5db'}`, background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {active && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7c3aed' }} />}
                       </span>
                       <span style={{ fontSize: 13, color: active ? '#7c3aed' : '#6b7280', fontWeight: active ? 600 : 400 }} className="group-hover:text-[#7c3aed] transition-colors">{s}</span>
                     </button>
@@ -173,11 +198,11 @@ export function FilterSidebar({ filters, setFilters, showCategorias = true }: Fi
             <SectionHeader label="Color" expanded={expanded.color} onToggle={() => toggle('color')} />
             {expanded.color && (
               <div className="grid mt-3" style={{ gridTemplateColumns: 'repeat(6, 1fr)', gap: 7 }}>
-                {COLORS.map((c) => {
+                {coloresList.map((c) => {
                   const actuales: number[] = Array.isArray(filters.colors) ? filters.colors : [];
-                  const active = actuales.includes(c.id);
+                  const active = actuales.includes(c.colorId);
                   return (
-                    <button type="button" key={c.id} onClick={() => toggleColor(c.id)} title={c.nombre} style={{ width: 26, height: 26, background: c.hex, border: active ? '2px solid #7c3aed' : `1px solid ${['#FFFFFF'].includes(c.hex) ? '#d1d5db' : 'transparent'}`, outline: active ? '2px solid #7c3aed' : 'none', outlineOffset: 2, transition: 'transform 0.15s', transform: active ? 'scale(1.15)' : 'scale(1)' }} className="hover:scale-110 transition-transform" />
+                    <button type="button" key={c.colorId} onClick={() => toggleColor(c.colorId)} style={{ width: 26, height: 26, background: c.colorHex, border: active ? '2px solid #7c3aed' : `1px solid ${['#FFFFFF', '#FFF'].includes(c.colorHex.toUpperCase()) ? '#d1d5db' : 'transparent'}`, outline: active ? '2px solid #7c3aed' : 'none', outlineOffset: 2, transition: 'transform 0.15s', transform: active ? 'scale(1.15)' : 'scale(1)' }} className="hover:scale-110 transition-transform" />
                   );
                 })}
               </div>
@@ -227,11 +252,44 @@ export function FilterSidebar({ filters, setFilters, showCategorias = true }: Fi
             <SectionHeader label="Precio" expanded={expanded.precio} onToggle={() => toggle('precio')} />
             {expanded.precio && (
               <div className="mt-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500 }}>Min: S/ {PRECIO_MIN}</span>
-                  <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700 }}>Max: S/ {filters.precioMax ?? PRECIO_MAX}</span>
+                <div className="flex items-center justify-between mb-4 gap-2">
+                  <div className="flex flex-col flex-1">
+                    <label style={{ fontSize: 10, color: '#9ca3af', marginBottom: 2 }}>Mínimo (S/)</label>
+                    <input 
+                      type="number" 
+                      min={PRECIO_MIN} 
+                      max={PRECIO_MAX} 
+                      value={filters.precioMin ?? PRECIO_MIN} 
+                      onChange={(e) => setFilters({ ...filters, precioMin: Number(e.target.value) })}
+                      className="border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#7c3aed]"
+                      style={{ fontSize: 12 }}
+                    />
+                  </div>
+                  <div className="flex flex-col flex-1">
+                    <label style={{ fontSize: 10, color: '#9ca3af', marginBottom: 2 }}>Máximo (S/)</label>
+                    <input 
+                      type="number" 
+                      min={PRECIO_MIN} 
+                      max={PRECIO_MAX} 
+                      value={filters.precioMax ?? PRECIO_MAX} 
+                      onChange={(e) => setFilters({ ...filters, precioMax: Number(e.target.value) })}
+                      className="border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#7c3aed]"
+                      style={{ fontSize: 12 }}
+                    />
+                  </div>
                 </div>
-                <input type="range" min={PRECIO_MIN} max={PRECIO_MAX} step={10} value={filters.precioMax ?? PRECIO_MAX} onChange={(e) => setFilters({ ...filters, precioMax: Number(e.target.value) })} className="w-full" style={{ accentColor: '#7c3aed' }} />
+                <div className="mt-8 px-2">
+                  <Slider
+                    min={PRECIO_MIN}
+                    max={PRECIO_MAX}
+                    step={10}
+                    value={[filters.precioMin ?? PRECIO_MIN, filters.precioMax ?? PRECIO_MAX]}
+                    onValueChange={(values) => {
+                      setFilters({ ...filters, precioMin: values[0], precioMax: values[1] });
+                    }}
+                    className="[&_[data-slot=slider-track]]:bg-gray-200 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-range]]:bg-[#7c3aed] [&_[data-slot=slider-thumb]]:border-2 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-[#7c3aed] [&_[data-slot=slider-thumb]]:w-4 [&_[data-slot=slider-thumb]]:h-4"
+                  />
+                </div>
               </div>
             )}
           </div>

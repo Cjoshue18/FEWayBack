@@ -1,21 +1,17 @@
 import { Link } from "react-router";
 import { Instagram, Youtube } from "lucide-react";
-
-const CATEGORIES = [
-  { id: "pantalon", label: "Pantalón" },
-  { id: "falda", label: "Falda" },
-  { id: "shorts", label: "Shorts" },
-  { id: "jogger", label: "Jogger" },
-  { id: "camisetas", label: "Camisetas" },
-  { id: "sueteres", label: "Suéteres" },
-  { id: "chaquetas", label: "Chaquetas" },
-  { id: "sets-baggy", label: "Sets Baggy" },
-  { id: "sets-denim", label: "Sets Denim" },
-  { id: "sets-deportivos", label: "Sets Deportivos" },
-  { id: "sets-tejidos", label: "Sets Tejidos" },
-];
+import { useState, useEffect } from "react";
+import { getCategorias, getEstilos, type Categoria, type Estilo } from "@/lib/api";
 
 export function Footer() {
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [estilos, setEstilos] = useState<Estilo[]>([]);
+
+  useEffect(() => {
+    getCategorias().then(setCategorias).catch(console.error);
+    getEstilos().then(setEstilos).catch(console.error);
+  }, []);
+
   return (
     <footer style={{ background: "#0d0d0d", color: "#fff" }}>
       {/* top: brand mark */}
@@ -168,10 +164,11 @@ export function Footer() {
                 gap: "8px 32px",
               }}
             >
-              {CATEGORIES.map((cat) => (
-                <li key={cat.id}>
+              {categorias.map((cat) => (
+                <li key={cat.cat_id}>
                   <Link
-                    to={`/categoria/${cat.id}`}
+                    to={`/catalogo?categoria=${cat.cat_id}`}
+                    onClick={() => window.scrollTo(0, 0)}
                     style={{
                       fontSize: 13,
                       color: "rgba(255,255,255,0.5)",
@@ -180,7 +177,48 @@ export function Footer() {
                     }}
                     className="hover:text-white transition-colors"
                   >
-                    {cat.label}
+                    {cat.cat_nombre}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Estilos */}
+          <div>
+            <p
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.18em",
+                color: "rgba(255,255,255,0.35)",
+                textTransform: "uppercase",
+                marginBottom: 16,
+              }}
+            >
+              Estilos
+            </p>
+            <ul
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr",
+                gap: "8px 32px",
+              }}
+            >
+              {estilos.map((est) => (
+                <li key={est.est_id}>
+                  <Link
+                    to={`/catalogo?estilo=${est.est_id}`}
+                    onClick={() => window.scrollTo(0, 0)}
+                    style={{
+                      fontSize: 13,
+                      color: "rgba(255,255,255,0.5)",
+                      letterSpacing: "0.02em",
+                      display: "inline-block",
+                    }}
+                    className="hover:text-white transition-colors"
+                  >
+                    {est.est_nombre}
                   </Link>
                 </li>
               ))}

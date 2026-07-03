@@ -1,13 +1,15 @@
-// Base del backend. Configurable por entorno con VITE_API_BASE (Vercel/preview/local);
-// si no está definida, cae al backend de producción por defecto.
-export const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://y2kvault-backend.onrender.com';
-console.log("======== ENV ========");
-console.log(import.meta.env);
-console.log("VITE_API_BASE =", import.meta.env.VITE_API_BASE);
-console.log("API_BASE =", API_BASE);
-console.log("=====================");
+// Backend de producción en Render — URL configurada a través de variables de entorno (Vercel/.env)
+export const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 // ── INTERFACES EXISTENTES ──
+export interface RespuestaPaginada<T> {
+  totalRegistros: number;
+  paginaActual: number;
+  registrosPorPagina: number;
+  totalPaginas: number;
+  elementos: T[];
+}
+
 export interface CategoriaApi {
   catID?: number; cat_id?: number;
   catNombre?: string; cat_nombre?: string;
@@ -20,6 +22,7 @@ export interface Categoria {
 
 export interface EstiloApi {
   estID?: number;
+  estId?: number;
   estNombre?: string;
   est_id?: number;
   est_nombre?: string;
@@ -28,6 +31,16 @@ export interface EstiloApi {
 export interface Estilo {
   est_id: number;
   est_nombre: string;
+}
+
+export interface ColorApi {
+  colorId?: number;
+  colorHex?: string;
+}
+
+export interface Color {
+  colorId: number;
+  colorHex: string;
 }
 
 // [P8 FIX] Ampliamos ClienteApi.usuario para incluir usuUsername y usuId
@@ -107,6 +120,7 @@ export interface ProductoVariante {
   colorNombre: string;
   colorHex: string;
   varStock: number;
+  varImgUrl?: string;
 }
 
 export interface Product {
@@ -116,7 +130,8 @@ export interface Product {
   image: string;
   sexo: string;
   tallas: string[];
-  colors: (number | string)[];
+  colors: string[];
+  colorDots?: { hex: string, imgUrl?: string }[];
   inStock: boolean;
   originalPrice?: number;
   hoverImage?: string;
@@ -144,12 +159,14 @@ export interface RegisterData {
 export interface FilterOptions {
   categoria?: (string | number)[];
   estilo?: (string | number)[];
-  color?: string[];
+  color?: (string | number)[];
   talla?: string[];
   genero?: string;
   stock?: boolean;
   precioMin?: number;
   precioMax?: number;
+  pagina?: number;
+  registrosPorPagina?: number;
 }
 
 // [P5 FIX] Interfaces para el CRUD de Direcciones
@@ -190,6 +207,15 @@ export interface DireccionPayload {
 }
 
 // [P6 FIX] Interfaz para actualización de perfil
+export interface AdminUpdatePedidoEstadoDTO {
+  pedEstado: string;
+}
+
+export interface IngresoDiario {
+  fecha: string;
+  total: number;
+}
+
 export interface UpdatePerfilData {
   cliNombre: string;
   cliApellido: string;
@@ -234,13 +260,13 @@ export async function registerClienteApi(data: RegisterData): Promise<{ success:
       // (login, perfil). Las claves planas (sin prefijo) que se enviaban antes no
       // calzaban con el DTO real, así que el documento nunca llegaba a guardarse.
       body: JSON.stringify({
-        Email:          data.Email,
-        NombreUsuario:  data.NombreUsuario,
-        Contrasena:     data.Contrasena,
-        Nombres:        data.Nombres,
-        Apellidos:      data.Apellidos,
-        TipoDocumento:  data.TipoDocumento,
-        Documento:      data.Documento,
+        Email: data.Email,
+        NombreUsuario: data.NombreUsuario,
+        Contrasena: data.Contrasena,
+        Nombres: data.Nombres,
+        Apellidos: data.Apellidos,
+        TipoDocumento: data.TipoDocumento,
+        Documento: data.Documento,
       }),
     });
 
@@ -269,7 +295,7 @@ const parseCategoria = (item: CategoriaApi): Categoria => ({
 });
 
 const parseEstilo = (item: EstiloApi): Estilo => ({
-  est_id: Number(item.estID ?? item.est_id ?? 0),
+  est_id: Number(item.estID ?? item.estId ?? item.est_id ?? 0),
   est_nombre: String(item.estNombre ?? item.est_nombre ?? ''),
 });
 
@@ -348,20 +374,41 @@ const parseProducto = (item: any): Product => {
         colorNombre: String(v.colorNombre ?? v.color_nombre ?? v.var_color ?? ''),
         colorHex: String(v.colorHex ?? v.color_hex ?? '').trim().toUpperCase(),
         varStock: Number(v.varStock ?? v.var_stock ?? 0),
+        varImgUrl: (v.varImgUrl || v.var_img_url || v.imgUrl || v.img_url || v.imagenurl || v.imagen_url || v.imgurl) ? String(v.varImgUrl ?? v.var_img_url ?? v.imgUrl ?? v.img_url ?? v.imagenurl ?? v.imagen_url ?? v.imgurl) : undefined,
       }));
   }
 
   let listaColores: string[] = [];
+  let listaColorDots: { hex: string, imgUrl?: string }[] = [];
   const rawColores = obj['colores'] ?? obj['pro_colores'] ?? obj['procolores'] ?? [];
 
   if (Array.isArray(rawColores)) {
-    listaColores = rawColores.map((c: any) => String(c).trim().toUpperCase());
+    // Si viene como string array (antiguo) o objeto { colorHex, imgUrl } (nuevo)
+    listaColores = rawColores.map((c: any) => typeof c === 'string' ? c.trim().toUpperCase() : String(c.colorHex ?? '').trim().toUpperCase());
+    
+    listaColorDots = rawColores.map((c: any) => {
+      if (typeof c === 'string') return { hex: c.trim().toUpperCase() };
+      return { 
+        hex: String(c.colorHex ?? '').trim().toUpperCase(), 
+        imgUrl: c.imgUrl ? String(c.imgUrl).trim().replace(/\\/g, '/') : undefined 
+      };
+    });
   } else if (Array.isArray(rawVariantes)) {
     const coloresSet = new Set<string>();
+    const dotsMap = new Map<string, string | undefined>();
     rawVariantes.forEach((v: any) => {
-      if (v && v.var_color) coloresSet.add(String(v.var_color).trim().toUpperCase());
+      const hex = String(v.colorHex ?? v.color_hex ?? v.var_color ?? '').trim().toUpperCase();
+      if (hex) {
+        coloresSet.add(hex);
+        if (!dotsMap.has(hex) && (v.varImgUrl || v.imgUrl || v.imagenurl)) {
+          dotsMap.set(hex, String(v.varImgUrl ?? v.imgUrl ?? v.imagenurl).trim().replace(/\\/g, '/'));
+        } else if (!dotsMap.has(hex)) {
+          dotsMap.set(hex, undefined);
+        }
+      }
     });
     listaColores = Array.from(coloresSet);
+    listaColorDots = listaColores.map(hex => ({ hex, imgUrl: dotsMap.get(hex) }));
   }
 
   // [P3 FIX] Unificamos finalId y safeId en una sola variable
@@ -372,6 +419,8 @@ const parseProducto = (item: any): Product => {
   const rawImagesArray = obj['imagenesurl'] ?? obj['imagenes_url'] ?? [];
   if (Array.isArray(rawImagesArray) && rawImagesArray.length > 0) {
     finalImage = String(rawImagesArray[0]).trim().replace(/\\/g, '/');
+  } else if (listaColorDots.length > 0 && listaColorDots.find(d => d.imgUrl)) {
+    finalImage = listaColorDots.find(d => d.imgUrl)!.imgUrl!;
   }
 
   return {
@@ -383,6 +432,7 @@ const parseProducto = (item: any): Product => {
     sexo: String(obj['pro_sexo'] ?? obj['sexo'] ?? 'unisex').toLowerCase(),
     tallas: listaTallas,
     colors: listaColores,
+    colorDots: listaColorDots,
     inStock: typeof obj['instock'] === 'boolean' ? obj['instock'] : true,
     categoria: obj['categoria'] ?? '',
     proDescuento: obj['prodescuento'] !== undefined ? Number(obj['prodescuento']) : undefined,
@@ -423,7 +473,8 @@ export async function fetchJson<T>(url: string, options: RequestInit = {}): Prom
     } catch {
       // sin body legible, seguimos con el mensaje genérico
     }
-    throw new Error(`HTTP Error: ${res.status} en la ruta ${url}${detail ? ` — ${detail}` : ''}`);
+    const finalMessage = detail ? detail : `HTTP Error: ${res.status} en la ruta ${url}`;
+    throw new Error(finalMessage);
   }
   if (res.status === 204) return {} as T;
 
@@ -443,6 +494,16 @@ export async function getEstilos(): Promise<Estilo[]> {
   const url = `${API_BASE}/api/estilos`;
   const data = await fetchJson<EstiloApi[]>(url);
   return Array.isArray(data) ? data.map(parseEstilo) : [];
+}
+
+// ── MÉTODOS DE COLORES ──
+export async function getColores(): Promise<Color[]> {
+  const url = `${API_BASE}/api/colores`;
+  const data = await fetchJson<ColorApi[]>(url);
+  return Array.isArray(data) ? data.map(c => ({
+    colorId: Number(c.colorId ?? 0),
+    colorHex: String(c.colorHex ?? '')
+  })) : [];
 }
 
 export async function createEstilo(estilo: { est_nombre: string }): Promise<Estilo> {
@@ -469,10 +530,31 @@ export async function deleteEstilo(id: number): Promise<void> {
 }
 
 // ── MÉTODOS DE CLIENTES ──
-export async function getClientes(): Promise<Cliente[]> {
-  const url = `${API_BASE}/api/admin/reportes/clientes`;
-  const data = await fetchJson<any[]>(url);
-  return Array.isArray(data) ? data.map(parseCliente) : [];
+export async function getClientes(pagina: number = 1, registrosPorPagina: number = 10): Promise<RespuestaPaginada<Cliente>> {
+  const url = `${API_BASE}/api/admin/reportes/clientes?pagina=${pagina}&registrosPorPagina=${registrosPorPagina}`;
+  const data = await fetchJson<any>(url);
+  
+  if (data && data.elementos) {
+    return {
+      totalRegistros: data.totalRegistros || 0,
+      paginaActual: data.paginaActual || 1,
+      registrosPorPagina: data.registrosPorPagina || 10,
+      totalPaginas: data.totalPaginas || 1,
+      elementos: Array.isArray(data.elementos) ? data.elementos.map(parseCliente) : []
+    };
+  }
+  
+  if (Array.isArray(data)) {
+      return {
+          totalRegistros: data.length,
+          paginaActual: 1,
+          registrosPorPagina: data.length,
+          totalPaginas: 1,
+          elementos: data.map(parseCliente)
+      };
+  }
+  
+  return { totalRegistros: 0, paginaActual: 1, registrosPorPagina: 10, totalPaginas: 1, elementos: [] };
 }
 
 export async function updateCliente(id: number, cliente: Partial<Cliente>): Promise<Cliente> {
@@ -550,7 +632,7 @@ export async function deleteDireccionApi(id: number): Promise<void> {
 // [P1 FIX] Eliminada la declaración duplicada del módulo; solo existe dentro de getProductos
 
 // ── MÉTODO DE PRODUCTOS ──
-export async function getProductos(filtros?: FilterOptions): Promise<Product[]> {
+export async function getProductos(filtros?: FilterOptions): Promise<RespuestaPaginada<Product>> {
   try {
     const url = new URL(`${API_BASE}/api/productos`);
 
@@ -569,6 +651,9 @@ export async function getProductos(filtros?: FilterOptions): Promise<Product[]> 
     };
 
     if (filtros) {
+      if (filtros.pagina) url.searchParams.append('pagina', filtros.pagina.toString());
+      if (filtros.registrosPorPagina) url.searchParams.append('registrosPorPagina', filtros.registrosPorPagina.toString());
+      
       filtros.categoria?.forEach((cat) => {
         if (cat === undefined || cat === '') return;
         const catKey = String(cat).toLowerCase().trim();
@@ -580,8 +665,8 @@ export async function getProductos(filtros?: FilterOptions): Promise<Product[]> 
         url.searchParams.append('estilo', String(est));
       });
       filtros.color?.forEach((c) => {
-        if (!c) return;
-        url.searchParams.append('color', c);
+        if (c === undefined || c === null) return;
+        url.searchParams.append('color', String(c));
       });
       filtros.talla?.forEach((t) => {
         if (!t) return;
@@ -603,15 +688,38 @@ export async function getProductos(filtros?: FilterOptions): Promise<Product[]> 
     }
 
     console.log(`📡 [Wayback API Request]: ${url.pathname}${url.search}`);
-    const data = await fetchJson<any[]>(url.toString());
-    return Array.isArray(data) ? data.map(parseProducto) : [];
+    const data = await fetchJson<any>(url.toString());
+    
+    // Si viene la paginación del backend
+    if (data && data.elementos) {
+      return {
+        totalRegistros: data.totalRegistros || 0,
+        paginaActual: data.paginaActual || 1,
+        registrosPorPagina: data.registrosPorPagina || 10,
+        totalPaginas: data.totalPaginas || 1,
+        elementos: Array.isArray(data.elementos) ? data.elementos.map(parseProducto) : []
+      };
+    }
+    
+    // Fallback por si el backend sigue devolviendo un array (durante la transición)
+    if (Array.isArray(data)) {
+        return {
+            totalRegistros: data.length,
+            paginaActual: 1,
+            registrosPorPagina: data.length,
+            totalPaginas: 1,
+            elementos: data.map(parseProducto)
+        };
+    }
+    
+    return { totalRegistros: 0, paginaActual: 1, registrosPorPagina: 10, totalPaginas: 1, elementos: [] };
   } catch (error) {
     console.error('Error crítico en la consulta unificada de productos:', error);
-    return [];
+    return { totalRegistros: 0, paginaActual: 1, registrosPorPagina: 10, totalPaginas: 1, elementos: [] };
   }
 }
 
-export async function getProductosPorCategoria(categoryId: number | string): Promise<Product[]> {
+export async function getProductosPorCategoria(categoryId: number | string): Promise<RespuestaPaginada<Product>> {
   return getProductos({ categoria: [categoryId] });
 }
 
@@ -628,71 +736,150 @@ export async function getProductoDetalle(id: number | string): Promise<Product |
 }
 
 // ── PEDIDOS (Checkout) ──
+// Campos obligatorios validados por el backend (.NET DTO):
+//   NumeroYape: exactamente 9 dígitos
+//   CodigoAprobacion: exactamente 6 dígitos
 export interface CrearPedidoPayload {
   dirId: number;
-  // Opcionales: con la pasarela automática ya no se ingresan a mano.
-  NumeroYape?: string;
-  CodigoAprobacion?: string;
+  NumeroYape: string;
+  CodigoAprobacion: string;
   Items: {
     VarId: number;
     Cantidad: number;
-    Precio?: number;
-    precio?: number;
-    Nombre?: string;
-    nombre?: string;
-    Talla?: string;
-    talla?: string;
-    Color?: string;
-    color?: string;
   }[];
 }
 
 export async function crearPedido(payload: CrearPedidoPayload): Promise<{ success: boolean; pedId?: number; error?: string }> {
   try {
-    const data = await fetchJson<{ pedId?: number }>(`${API_BASE}/api/mis-pedidos`, {
+    const data = await fetchJson<{ pedId?: number; PedId?: number }>(`${API_BASE}/api/mis-pedidos`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-    return { success: true, pedId: data?.pedId };
+    return { success: true, pedId: data?.pedId ?? data?.PedId };
   } catch (err: any) {
     return { success: false, error: err?.message ?? 'No se pudo confirmar el pedido.' };
   }
 }
 
-// ── PASARELA DE PAGO AUTOMÁTICA ──
-export interface PreferenciaPagoPayload {
-  Items: { precio: number; cantidad: number }[];
+export interface PedidoHistorial {
+  id: number;
+  estado: string;
+  total: number;
+  fechaCompra: string;
 }
 
-export interface PreferenciaPago {
-  preferenceId: string;
-  monto: number;
-  initPoint: string;
-}
-
-// Crea la preferencia de pago (paso 1: el frontend "abre" la pasarela).
-export async function crearPreferenciaPago(payload: PreferenciaPagoPayload): Promise<{ success: boolean; data?: PreferenciaPago; error?: string }> {
+export async function getMisPedidos(pagina: number = 1, registrosPorPagina: number = 10): Promise<RespuestaPaginada<PedidoHistorial>> {
   try {
-    const data = await fetchJson<PreferenciaPago>(`${API_BASE}/api/pagos/crear-preferencia`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    return { success: true, data };
-  } catch (err: any) {
-    return { success: false, error: err?.message ?? 'No se pudo iniciar el pago.' };
+    const data = await fetchJson<any>(`${API_BASE}/api/mis-pedidos?pagina=${pagina}&registrosPorPagina=${registrosPorPagina}`);
+    
+    // Si viene la paginación del backend
+    if (data && data.elementos) {
+      return {
+        totalRegistros: data.totalRegistros || 0,
+        paginaActual: data.paginaActual || 1,
+        registrosPorPagina: data.registrosPorPagina || 10,
+        totalPaginas: data.totalPaginas || 1,
+        elementos: Array.isArray(data.elementos) ? data.elementos.map((p: any) => ({
+          id: Number(p.PedId ?? p.pedId ?? p.ped_id ?? 0),
+          estado: String(p.PedEstado ?? p.pedEstado ?? p.ped_estado ?? 'Pendiente'),
+          total: Number(p.PedTotal ?? p.pedTotal ?? p.ped_total ?? 0),
+          fechaCompra: String(p.PedFechaCompra ?? p.pedFechaCompra ?? p.ped_fecha_compra ?? ''),
+        })) : []
+      };
+    }
+    
+    // Fallback por si el backend sigue devolviendo un array (durante la transición)
+    if (Array.isArray(data)) {
+        const elementos = data.map((p: any) => ({
+          id: Number(p.PedId ?? p.pedId ?? p.ped_id ?? 0),
+          estado: String(p.PedEstado ?? p.pedEstado ?? p.ped_estado ?? 'Pendiente'),
+          total: Number(p.PedTotal ?? p.pedTotal ?? p.ped_total ?? 0),
+          fechaCompra: String(p.PedFechaCompra ?? p.pedFechaCompra ?? p.ped_fecha_compra ?? ''),
+        }));
+        return {
+            totalRegistros: elementos.length,
+            paginaActual: 1,
+            registrosPorPagina: elementos.length,
+            totalPaginas: 1,
+            elementos: elementos
+        };
+    }
+    
+    return { totalRegistros: 0, paginaActual: 1, registrosPorPagina: 10, totalPaginas: 1, elementos: [] };
+  } catch (error) {
+    console.error('Error al obtener pedidos:', error);
+    return { totalRegistros: 0, paginaActual: 1, registrosPorPagina: 10, totalPaginas: 1, elementos: [] };
   }
 }
 
-// Notifica el resultado del pago (paso final: aprueba el pedido vía webhook).
-export async function notificarPagoWebhook(pedidoId: number, estado: 'aprobado' | 'rechazado' = 'aprobado'): Promise<{ success: boolean; error?: string }> {
+export interface PedidoDetalleClienteItem {
+  varId: number;
+  nombre: string;
+  talla: string;
+  color: string;
+  cantidad: number;
+  precio: number;
+  subtotal: number;
+  imgUrl: string | null;
+}
+
+export interface PedidoDetalleCliente {
+  id: number;
+  estado: string;
+  total: number;
+  fechaCompra: string;
+  fechaEntrega: string | null;
+  metodoPago: string;
+  ultimos4: string | null;
+  direccion: string; // Combinado de dirCalle, distrito, etc.
+  items: PedidoDetalleClienteItem[];
+}
+
+function parsePedidoDetalleCliente(item: any): PedidoDetalleCliente {
+  const obj: Record<string, any> = {};
+  if (item && typeof item === 'object') {
+    Object.keys(item).forEach((key) => { obj[key.toLowerCase()] = item[key]; });
+  }
+
+  const rawItems = Array.isArray(obj['detalles']) ? obj['detalles'] : [];
+  const items: PedidoDetalleClienteItem[] = rawItems.map((v: any) => ({
+    varId: Number(v.varId ?? v.var_id ?? 0),
+    nombre: String(v.proNombre ?? v.pro_nombre ?? ''),
+    talla: String(v.varTalla ?? v.var_talla ?? ''),
+    color: String(v.colorNombre ?? v.color_nombre ?? ''),
+    cantidad: Number(v.detPedCantidad ?? v.det_ped_cantidad ?? 0),
+    precio: Number(v.detPedPrecioUnitario ?? v.det_ped_precio_unitario ?? 0),
+    subtotal: Number(v.detPedSubTotal ?? v.det_ped_sub_total ?? 0),
+    imgUrl: v.imgURL ?? v.imgUrl ?? v.img_url ?? null,
+  }));
+
+  const dirCompleta = [
+    obj['peddircalle'] ?? obj['ped_dir_calle'],
+    obj['peddirdistrito'] ?? obj['ped_dir_distrito'],
+    obj['peddirprovincia'] ?? obj['ped_dir_provincia'],
+    obj['peddirdepartamento'] ?? obj['ped_dir_departamento']
+  ].filter(Boolean).join(', ');
+
+  return {
+    id: Number(obj['pedid'] ?? obj['ped_id'] ?? 0),
+    estado: String(obj['pedestado'] ?? obj['ped_estado'] ?? 'pendiente'),
+    total: Number(obj['pedtotal'] ?? obj['ped_total'] ?? 0),
+    fechaCompra: String(obj['pedfechacompra'] ?? obj['ped_fecha_compra'] ?? ''),
+    fechaEntrega: obj['pedfechaentrega'] ?? obj['ped_fecha_entrega'] ?? null,
+    metodoPago: String(obj['pedmettipopago'] ?? obj['ped_met_tipo_pago'] ?? ''),
+    ultimos4: obj['pedmetultimos4'] ?? obj['ped_met_ultimos4'] ?? null,
+    direccion: dirCompleta,
+    items,
+  };
+}
+
+export async function getPedidoDetalleCliente(id: number): Promise<PedidoDetalleCliente | null> {
   try {
-    await fetchJson(`${API_BASE}/api/pagos/webhook`, {
-      method: 'POST',
-      body: JSON.stringify({ estado, pedidoId }),
-    });
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err?.message ?? 'No se pudo confirmar el pago.' };
+    const data = await fetchJson<any>(`${API_BASE}/api/mis-pedidos/${id}`);
+    return parsePedidoDetalleCliente(data);
+  } catch (error) {
+    console.error('Error al obtener el detalle del pedido del cliente:', error);
+    return null;
   }
 }
 
@@ -762,20 +949,25 @@ function parsePedidoAdminDetalle(item: any): PedidoAdminDetalle {
   if (item && typeof item === 'object') {
     Object.keys(item).forEach((key) => { obj[key.toLowerCase()] = item[key]; });
   }
-  const rawItems = Array.isArray(obj['items']) ? obj['items'] : [];
+  const rawItems = Array.isArray(obj['detalles']) ? obj['detalles'] : (Array.isArray(obj['items']) ? obj['items'] : []);
   const itemsDetalle: PedidoAdminItem[] = rawItems
     .filter((v: any) => v && typeof v === 'object')
-    .map((v: any) => ({
-      varId: Number(v.varId ?? v.var_id ?? 0),
-      nombre: String(v.proNombre ?? v.pro_nombre ?? v.nombre ?? v.producto ?? ''),
-      talla: String(v.varTalla ?? v.var_talla ?? v.talla ?? ''),
-      color: String(v.colorNombre ?? v.color_nombre ?? v.color ?? ''),
-      cantidad: Number(v.cantidad ?? v.pedDetCantidad ?? v.ped_det_cantidad ?? 0),
-      precio: Number(v.precio ?? v.pedDetPrecio ?? v.ped_det_precio ?? 0),
-    }));
+    .map((rawV: any) => {
+      const v: Record<string, any> = {};
+      Object.keys(rawV).forEach((key) => { v[key.toLowerCase()] = rawV[key]; });
+      return {
+        varId: Number(v['varid'] ?? v['var_id'] ?? 0),
+        nombre: String(v['pronombre'] ?? v['pro_nombre'] ?? v['nombre'] ?? v['producto'] ?? ''),
+        talla: String(v['vartalla'] ?? v['var_talla'] ?? v['talla'] ?? ''),
+        color: String(v['colornombre'] ?? v['color_nombre'] ?? v['color'] ?? ''),
+        cantidad: Number(v['detpedcantidad'] ?? v['det_ped_cantidad'] ?? v['cantidad'] ?? 0),
+        precio: Number(v['detpedpreciounitario'] ?? v['det_ped_precio_unitario'] ?? v['precio'] ?? v['peddetprecio'] ?? 0),
+      };
+    });
 
   return {
     ...base,
+    items: itemsDetalle.reduce((sum, v) => sum + v.cantidad, 0),
     numeroYape: String(obj['numeroyape'] ?? obj['numero_yape'] ?? ''),
     codigoAprobacion: String(obj['codigoaprobacion'] ?? obj['codigo_aprobacion'] ?? ''),
     direccionEnvio: String(obj['direccionenvio'] ?? obj['dircalle'] ?? obj['direccion'] ?? ''),
@@ -783,14 +975,42 @@ function parsePedidoAdminDetalle(item: any): PedidoAdminDetalle {
   };
 }
 
-export async function getPedidosAdmin(): Promise<PedidoAdmin[]> {
+// ── MÉTODOS DE ADMIN (PEDIDOS) ──
+export async function getPedidosAdmin(pagina: number = 1, registrosPorPagina: number = 10): Promise<RespuestaPaginada<PedidoAdmin>> {
   try {
-    const data = await fetchJson<any[]>(`${API_BASE}/api/admin/reportes/pedidos`);
-    return Array.isArray(data) ? data.map(parsePedidoAdmin) : [];
+    const data = await fetchJson<any>(`${API_BASE}/api/admin/reportes/pedidos?pagina=${pagina}&registrosPorPagina=${registrosPorPagina}`);
+    
+    // Si viene la paginación del backend
+    if (data && data.elementos) {
+      return {
+        totalRegistros: data.totalRegistros || 0,
+        paginaActual: data.paginaActual || 1,
+        registrosPorPagina: data.registrosPorPagina || 10,
+        totalPaginas: data.totalPaginas || 1,
+        elementos: Array.isArray(data.elementos) ? data.elementos.map(parsePedidoAdmin) : []
+      };
+    }
+    
+    // Fallback
+    if (Array.isArray(data)) {
+        return {
+            totalRegistros: data.length,
+            paginaActual: 1,
+            registrosPorPagina: data.length,
+            totalPaginas: 1,
+            elementos: data.map(parsePedidoAdmin)
+        };
+    }
+    
+    return { totalRegistros: 0, paginaActual: 1, registrosPorPagina: 10, totalPaginas: 1, elementos: [] };
   } catch (error) {
     console.error('Error al listar pedidos (admin):', error);
-    return [];
+    return { totalRegistros: 0, paginaActual: 1, registrosPorPagina: 10, totalPaginas: 1, elementos: [] };
   }
+}
+
+export async function getIngresosSemanales(): Promise<IngresoDiario[]> {
+  return fetchJson<IngresoDiario[]>(`${API_BASE}/api/admin/reportes/pedidos/ingresos-semanales`);
 }
 
 export async function getPedidoAdminDetalle(id: number): Promise<PedidoAdminDetalle | null> {

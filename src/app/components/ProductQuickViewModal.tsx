@@ -60,6 +60,12 @@ export function ProductQuickViewModal({ product, onClose, onAdded }: ProductQuic
     (v) => (!requiereTalla || v.varTalla === selectedTalla) && (!requiereColor || v.colorHex === selectedColor)
   );
 
+  useEffect(() => {
+    if (!selectedColor && colores.length > 0) {
+      setSelectedColor(colores[0].hex);
+    }
+  }, [colores, selectedColor]);
+
   const puedeAgregar =
     fuente.inStock !== false &&
     !cargandoVariantes &&
@@ -76,13 +82,16 @@ export function ProductQuickViewModal({ product, onClose, onAdded }: ProductQuic
       varId: varianteSeleccionada?.varId,
       name: fuente.name,
       price: precioFinal,
-      image: fuente.image,
+      image: imagenMostrar,
       size: selectedTalla ?? 'Único',
       color: colorNombre,
       inStock: fuente.inStock ?? true,
     });
     onAdded();
   };
+
+  const varianteParaImagen = variantes.find((v) => v.colorHex === selectedColor && v.varImgUrl);
+  const imagenMostrar = varianteParaImagen?.varImgUrl || product.image;
 
   return (
     <div
@@ -94,11 +103,11 @@ export function ProductQuickViewModal({ product, onClose, onAdded }: ProductQuic
         onClick={(e) => e.stopPropagation()}
       >
         {/* Imagen principal */}
-        <div className="relative w-full md:w-1/2 aspect-[3/4] bg-gray-50 flex-shrink-0">
+        <div className="relative w-full md:w-1/2 aspect-[3/4] bg-gray-50 flex-shrink-0 transition-all duration-300">
           <img
-            src={product.image}
+            src={imagenMostrar}
             alt={product.name}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
           />
           <button
             onClick={onClose}
@@ -134,7 +143,10 @@ export function ProductQuickViewModal({ product, onClose, onAdded }: ProductQuic
                     key={hex}
                     type="button"
                     title={nombre}
-                    onClick={() => setSelectedColor(hex)}
+                    onClick={() => {
+                      setSelectedColor(hex);
+                      setSelectedTalla(null); // Reset talla when color changes
+                    }}
                     className="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110"
                     style={{
                       background: hex,
@@ -160,7 +172,7 @@ export function ProductQuickViewModal({ product, onClose, onAdded }: ProductQuic
                       type="button"
                       disabled={!disponible}
                       onClick={() => setSelectedTalla(talla)}
-                      className="px-3.5 py-1.5 text-xs font-bold border rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className={`relative px-3.5 py-1.5 text-xs font-bold border rounded transition-colors ${!disponible ? 'opacity-30 cursor-not-allowed' : ''}`}
                       style={{
                         borderColor: activa ? '#7c3aed' : '#e5e7eb',
                         background: activa ? '#7c3aed' : 'transparent',
@@ -168,6 +180,9 @@ export function ProductQuickViewModal({ product, onClose, onAdded }: ProductQuic
                       }}
                     >
                       {talla}
+                      {!disponible && (
+                        <div className="absolute inset-0 w-full h-full pointer-events-none" style={{ background: 'linear-gradient(to top right, transparent calc(50% - 1px), #9ca3af calc(50%), transparent calc(50% + 1px))' }} />
+                      )}
                     </button>
                   );
                 })}

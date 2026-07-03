@@ -1,21 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { getCategorias, getEstilos } from '@/lib/api';
+import type { Categoria, Estilo } from '@/lib/api';
 
 interface SearchOverlayProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const CATEGORIES = [
-  'Pantalón', 'Falda', 'Shorts', 'Jogger', 'Camisetas',
-  'Suéteres', 'Chaquetas', 'Sets Baggy', 'Sets Denim', 'Sets Deportivos', 'Sets Tejidos',
-];
-
 export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [estilos, setEstilos] = useState<Estilo[]>([]);
+
+  useEffect(() => {
+    getCategorias().then(setCategorias).catch(console.error);
+    getEstilos().then(setEstilos).catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -34,11 +38,13 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const goToCategory = (cat: string) => {
-    const id = cat.toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i').replace(/ó/g, 'o').replace(/ú/g, 'u').replace(/ñ/g, 'n');
-    navigate(`/categoria/${id}`);
+  const goToCategory = (id: number) => {
+    navigate(`/catalogo?categoria=${id}`);
+    onClose();
+  };
+
+  const goToEstilo = (id: number) => {
+    navigate(`/catalogo?estilo=${id}`);
     onClose();
   };
 
@@ -50,9 +56,14 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     }
   };
 
-  const filtered = query.trim().length > 0
-    ? CATEGORIES.filter((c) => c.toLowerCase().includes(query.toLowerCase()))
-    : CATEGORIES;
+  const qLower = query.trim().toLowerCase();
+  const filteredCats = qLower.length > 0
+    ? categorias.filter((c) => c.cat_nombre.toLowerCase().includes(qLower))
+    : categorias;
+    
+  const filteredEstilos = qLower.length > 0
+    ? estilos.filter((e) => e.est_nombre.toLowerCase().includes(qLower))
+    : estilos;
 
   if (!isOpen) return null;
 
@@ -104,29 +115,49 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
           <div className="mt-5" style={{ height: 1, background: '#f3f4f6' }} />
         </div>
 
-        {/* categories */}
+        {/* categories and styles */}
         <div className="container mx-auto px-6 py-6">
-          <p
-            className="mb-4 uppercase"
-            style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', color: '#7c3aed' }}
-          >
-            {query.trim() ? 'Resultados' : 'Categorías'}
-          </p>
-
-          {filtered.length > 0 ? (
-            <div className="flex flex-wrap" style={{ gap: 8 }}>
-              {filtered.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => goToCategory(cat)}
-                  className="px-4 py-2 border border-gray-200 text-gray-600 uppercase transition-all hover:border-[#7c3aed] hover:text-[#7c3aed] hover:bg-[rgba(124,58,237,0.05)]"
-                  style={{ fontSize: 11, letterSpacing: '0.08em', fontWeight: 600 }}
-                >
-                  {cat}
-                </button>
-              ))}
+          {filteredCats.length > 0 && (
+            <div className="mb-6">
+              <p className="mb-4 uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', color: '#7c3aed' }}>
+                {query.trim() ? 'Categorías (Resultados)' : 'Categorías Populares'}
+              </p>
+              <div className="flex flex-wrap" style={{ gap: 8 }}>
+                {filteredCats.map((cat) => (
+                  <button
+                    key={`cat-${cat.cat_id}`}
+                    onClick={() => goToCategory(cat.cat_id)}
+                    className="px-4 py-2 border border-gray-200 text-gray-600 uppercase transition-all hover:border-[#7c3aed] hover:text-[#7c3aed] hover:bg-[rgba(124,58,237,0.05)]"
+                    style={{ fontSize: 11, letterSpacing: '0.08em', fontWeight: 600 }}
+                  >
+                    {cat.cat_nombre}
+                  </button>
+                ))}
+              </div>
             </div>
-          ) : (
+          )}
+
+          {filteredEstilos.length > 0 && (
+            <div className="mb-6">
+              <p className="mb-4 uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', color: '#7c3aed' }}>
+                {query.trim() ? 'Estilos (Resultados)' : 'Estilos'}
+              </p>
+              <div className="flex flex-wrap" style={{ gap: 8 }}>
+                {filteredEstilos.map((est) => (
+                  <button
+                    key={`est-${est.est_id}`}
+                    onClick={() => goToEstilo(est.est_id)}
+                    className="px-4 py-2 border border-gray-200 text-gray-600 uppercase transition-all hover:border-[#7c3aed] hover:text-[#7c3aed] hover:bg-[rgba(124,58,237,0.05)]"
+                    style={{ fontSize: 11, letterSpacing: '0.08em', fontWeight: 600 }}
+                  >
+                    {est.est_nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {filteredCats.length === 0 && filteredEstilos.length === 0 && (
             <p style={{ fontSize: 14, color: '#6b7280' }}>
               Sin resultados para <strong>"{query}"</strong>
             </p>

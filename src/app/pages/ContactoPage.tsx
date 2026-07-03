@@ -51,7 +51,7 @@ export function ContactoPage() {
                   <Mail className="w-5 h-5 text-[#7c3aed] mt-1" />
                   <div>
                     <p className="font-medium text-gray-900">Email</p>
-                    <p className="text-gray-600">hola@y2kvault.com</p>
+                    <p className="text-gray-600">hola@wayback.com</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-4">

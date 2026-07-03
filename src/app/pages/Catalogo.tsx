@@ -5,61 +5,87 @@ import { ProductCard } from '@/app/components/ProductCard';
 import { getProductos } from '@/lib/api';
 import type { Product } from '@/lib/api';
 
-// Mismos IDs que FilterSidebar — traduce el id interno al nombre que espera la API en el query string.
-const MAPA_COLORS_NOMBRE: Record<number, string> = {
-  1: 'blanco', 2: 'negro', 3: 'azul', 4: 'verde',
-  5: 'amarillo', 6: 'rojo', 7: 'rosa', 8: 'morado',
-};
+// El filtro de colores ahora envía IDs directamente a la API, no nombres.
 
 export function CatalogoPage() {
   const [productos, setProductos] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Estado inicial leído una sola vez desde la URL (deep-link); de ahí en más, filters → URL.
-  const [filters, setFilters] = useState<any>({
+  // Pagination states
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRegistros, setTotalRegistros] = useState(0);
+  const ITEMS_PER_PAGE = 12;
+
+  // ── 🎯 URL = fuente de verdad. Los filtros se derivan directamente de los searchParams ──
+  const filters = {
     categorias: searchParams.getAll('categoria'),
+    estilos: searchParams.getAll('estilo'),
+    colors: searchParams.getAll('color').map(Number).filter(n => !isNaN(n)),
     sexo: searchParams.get('genero') ? [searchParams.get('genero') as string] : [],
-    colors: [],
     tallas: searchParams.getAll('talla').map((t) => t.toUpperCase()),
     soloDisponibles: searchParams.get('stock') === 'true',
     precioMin: Number(searchParams.get('precioMin') ?? 0),
     precioMax: Number(searchParams.get('precioMax') ?? 500),
-  });
+    pagina: Number(searchParams.get('pagina') ?? 1),
+  };
 
-  // ── 🎯 Filtros = fuente de verdad. La URL y la llamada a la API se derivan de los mismos valores ──
+  const setFilters = (newFiltersOrFn: any) => {
+    let resolvedFilters = newFiltersOrFn;
+    if (typeof newFiltersOrFn === 'function') {
+      resolvedFilters = newFiltersOrFn(filters);
+    }
+
+    // Si cambian los filtros (que no sea solo cambiar de página), reseteamos a página 1
+    const changedFilters = { ...resolvedFilters, pagina: 1 };
+    const currentFilters = { ...filters, pagina: 1 };
+    if (JSON.stringify(changedFilters) !== JSON.stringify(currentFilters)) {
+      resolvedFilters.pagina = 1;
+    }
+
+    const urlParams: [string, string][] = [];
+    (resolvedFilters.categorias || []).forEach((c: string) => urlParams.push(['categoria', c]));
+    (resolvedFilters.estilos || []).forEach((e: string) => urlParams.push(['estilo', e]));
+    (resolvedFilters.colors || []).forEach((c: number) => urlParams.push(['color', String(c)]));
+    (resolvedFilters.tallas || []).map((t: string) => t.toUpperCase()).forEach((t: string) => urlParams.push(['talla', t]));
+    if (resolvedFilters.sexo && resolvedFilters.sexo.length > 0) urlParams.push(['genero', resolvedFilters.sexo[0]]);
+    if (resolvedFilters.soloDisponibles) urlParams.push(['stock', 'true']);
+    if (resolvedFilters.precioMin) urlParams.push(['precioMin', String(resolvedFilters.precioMin)]);
+    if (resolvedFilters.precioMax !== undefined && resolvedFilters.precioMax !== 500) urlParams.push(['precioMax', String(resolvedFilters.precioMax)]);
+    if (resolvedFilters.pagina && resolvedFilters.pagina > 1) urlParams.push(['pagina', String(resolvedFilters.pagina)]);
+
+    setSearchParams(urlParams, { replace: true });
+  };
+
+  // Cada vez que cambian los searchParams (la URL), hacemos fetch a la API
   useEffect(() => {
     let active = true;
     setLoading(true);
 
-    const categorias: string[] = filters.categorias;
-    const coloresNombre = (filters.colors as number[]).map((id) => MAPA_COLORS_NOMBRE[id]).filter(Boolean);
-    const tallasLower = (filters.tallas as string[]).map((t) => t.toLowerCase());
+    const categorias = filters.categorias;
+    const estilos = filters.estilos;
+    const coloresIds = filters.colors;
+    const tallasLower = filters.tallas.map((t) => t.toLowerCase());
     const genero = filters.sexo.length > 0 ? filters.sexo[0] : undefined;
-
-    const urlParams: [string, string][] = [];
-    categorias.forEach((c) => urlParams.push(['categoria', c]));
-    coloresNombre.forEach((c) => urlParams.push(['color', c]));
-    tallasLower.forEach((t) => urlParams.push(['talla', t]));
-    if (genero) urlParams.push(['genero', genero]);
-    if (filters.soloDisponibles) urlParams.push(['stock', 'true']);
-    if (filters.precioMin) urlParams.push(['precioMin', String(filters.precioMin)]);
-    if (filters.precioMax !== 500) urlParams.push(['precioMax', String(filters.precioMax)]);
-    setSearchParams(urlParams, { replace: true });
 
     getProductos({
       categoria: categorias.length > 0 ? categorias : undefined,
+      estilo: estilos.length > 0 ? estilos : undefined,
       genero,
-      color: coloresNombre.length > 0 ? coloresNombre : undefined,
+      color: coloresIds.length > 0 ? coloresIds : undefined,
       talla: tallasLower.length > 0 ? tallasLower : undefined,
       stock: filters.soloDisponibles || undefined,
       precioMin: filters.precioMin,
       precioMax: filters.precioMax,
+      pagina: filters.pagina,
+      registrosPorPagina: ITEMS_PER_PAGE
     })
       .then((res) => {
         if (active) {
-          console.log('👉 [Wayback C# Catalogo Sync]:', res.length, 'prendas recibidas.');
-          setProductos(res ?? []);
+          console.log('👉 [Wayback C# Catalogo Sync]:', res.elementos?.length || 0, 'prendas recibidas.');
+          setProductos(res.elementos ?? []);
+          setTotalPages(res.totalPaginas || 1);
+          setTotalRegistros(res.totalRegistros || 0);
         }
       })
       .catch((err) => console.error('Error conectando a la API:', err))
@@ -68,23 +94,79 @@ export function CatalogoPage() {
       });
 
     return () => { active = false; };
-  }, [filters.categorias, filters.sexo, filters.colors, filters.tallas, filters.soloDisponibles, filters.precioMin, filters.precioMax]);
+  }, [searchParams]);
 
-  // Limpiar filtros también limpia la URL (el efecto de arriba reacciona al cambio de estado).
+  // Limpiar filtros simplemente limpia los searchParams
   const resetAll = () => {
-    setFilters({
-      categorias: [],
-      sexo: [],
-      colors: [],
-      tallas: [],
-      soloDisponibles: false,
-      precioMin: 0,
-      precioMax: 500
-    });
+    setSearchParams([], { replace: true });
+  };
+
+  const renderPagination = (isTop: boolean = false) => {
+    if (totalPages <= 1) return null;
+
+    if (isTop) {
+      return (
+        <div className="flex items-center justify-between my-6 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setFilters({ ...filters, pagina: Math.max(1, filters.pagina - 1) });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              disabled={filters.pagina === 1}
+              className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-[#7c3aed] disabled:opacity-40 disabled:hover:text-slate-600 transition-colors bg-white px-3 py-1.5 rounded-md border border-slate-200"
+            >
+              Anterior
+            </button>
+            <button
+              onClick={() => {
+                setFilters({ ...filters, pagina: Math.min(totalPages, filters.pagina + 1) });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              disabled={filters.pagina === totalPages}
+              className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-[#7c3aed] disabled:opacity-40 disabled:hover:text-slate-600 transition-colors bg-white px-3 py-1.5 rounded-md border border-slate-200"
+            >
+              Siguiente
+            </button>
+          </div>
+          <span className="text-xs text-slate-500 font-medium">
+            Página {filters.pagina} de {totalPages} ({totalRegistros} productos)
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-between my-6 pt-4 border-t border-slate-100">
+        <button
+          onClick={() => {
+            setFilters({ ...filters, pagina: Math.max(1, filters.pagina - 1) });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          disabled={filters.pagina === 1}
+          className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-[#7c3aed] disabled:opacity-40 disabled:hover:text-slate-600 transition-colors bg-white px-3 py-1.5 rounded-md border border-slate-200"
+        >
+          Anterior
+        </button>
+        <span className="text-xs text-slate-500 font-medium">
+          Página {filters.pagina} de {totalPages} ({totalRegistros} productos)
+        </span>
+        <button
+          onClick={() => {
+            setFilters({ ...filters, pagina: Math.min(totalPages, filters.pagina + 1) });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          disabled={filters.pagina === totalPages}
+          className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-[#7c3aed] disabled:opacity-40 disabled:hover:text-slate-600 transition-colors bg-white px-3 py-1.5 rounded-md border border-slate-200"
+        >
+          Siguiente
+        </button>
+      </div>
+    );
   };
 
   return (
-    /* 👉 CAMBIO AQUÍ: Agregamos 'items-start'.
+    /* CAMBIO AQUÍ: Agregamos 'items-start'.
       Esto evita que la barra de filtros se estire hacia abajo acompañando al catálogo entero.
     */
     <div className="container mx-auto px-6 py-8 flex items-start gap-8 min-h-[60vh]">
@@ -94,6 +176,8 @@ export function CatalogoPage() {
         <h2 className="text-xl font-black uppercase tracking-tight mb-6 text-gray-900">
           Catálogo de Productos
         </h2>
+
+        {renderPagination(true)}
 
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -108,6 +192,9 @@ export function CatalogoPage() {
             ))}
           </div>
         )}
+
+        {/* Pagination Controls */}
+        {renderPagination()}
 
         {!loading && productos.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 border border-dashed border-gray-200 bg-white rounded-2xl p-8 mt-2">
