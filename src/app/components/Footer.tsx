@@ -168,6 +168,7 @@ export function Footer() {
                 <li key={cat.cat_id}>
                   <Link
                     to={`/catalogo?categoria=${cat.cat_id}`}
+                    onClick={() => window.scrollTo(0, 0)}
                     style={{
                       fontSize: 13,
                       color: "rgba(255,255,255,0.5)",
@@ -208,6 +209,7 @@ export function Footer() {
                 <li key={est.est_id}>
                   <Link
                     to={`/catalogo?estilo=${est.est_id}`}
+                    onClick={() => window.scrollTo(0, 0)}
                     style={{
                       fontSize: 13,
                       color: "rgba(255,255,255,0.5)",

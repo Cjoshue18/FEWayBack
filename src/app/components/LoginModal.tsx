@@ -244,7 +244,7 @@ export function LoginModal({ isOpen, onClose, onSwitchToRegister }: LoginModalPr
               style={{ background: '#fafafa', border: '1px solid #e5e7eb' }}
             >
               <p style={{ fontSize: 11, color: '#6b7280' }}>
-                Conectado en vivo a la base de datos de <span className="font-semibold text-[#7c3aed]">Y2KVault API</span>.
+                Conectado en vivo a la base de datos de <span className="font-semibold text-[#7c3aed]">Wayback API</span>.
               </p>
             </div>
           </div>

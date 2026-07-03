@@ -11,7 +11,7 @@ export function CatalogoPage() {
   const [productos, setProductos] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchParams, setSearchParams] = useSearchParams();
-  
+
   // Pagination states
   const [totalPages, setTotalPages] = useState(1);
   const [totalRegistros, setTotalRegistros] = useState(0);
@@ -35,14 +35,14 @@ export function CatalogoPage() {
     if (typeof newFiltersOrFn === 'function') {
       resolvedFilters = newFiltersOrFn(filters);
     }
-    
+
     // Si cambian los filtros (que no sea solo cambiar de página), reseteamos a página 1
     const changedFilters = { ...resolvedFilters, pagina: 1 };
     const currentFilters = { ...filters, pagina: 1 };
     if (JSON.stringify(changedFilters) !== JSON.stringify(currentFilters)) {
       resolvedFilters.pagina = 1;
     }
-    
+
     const urlParams: [string, string][] = [];
     (resolvedFilters.categorias || []).forEach((c: string) => urlParams.push(['categoria', c]));
     (resolvedFilters.estilos || []).forEach((e: string) => urlParams.push(['estilo', e]));
@@ -53,7 +53,7 @@ export function CatalogoPage() {
     if (resolvedFilters.precioMin) urlParams.push(['precioMin', String(resolvedFilters.precioMin)]);
     if (resolvedFilters.precioMax !== undefined && resolvedFilters.precioMax !== 500) urlParams.push(['precioMax', String(resolvedFilters.precioMax)]);
     if (resolvedFilters.pagina && resolvedFilters.pagina > 1) urlParams.push(['pagina', String(resolvedFilters.pagina)]);
-    
+
     setSearchParams(urlParams, { replace: true });
   };
 
@@ -101,11 +101,44 @@ export function CatalogoPage() {
     setSearchParams([], { replace: true });
   };
 
-  const renderPagination = () => {
+  const renderPagination = (isTop: boolean = false) => {
     if (totalPages <= 1) return null;
+
+    if (isTop) {
+      return (
+        <div className="flex items-center justify-between my-6 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setFilters({ ...filters, pagina: Math.max(1, filters.pagina - 1) });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              disabled={filters.pagina === 1}
+              className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-[#7c3aed] disabled:opacity-40 disabled:hover:text-slate-600 transition-colors bg-white px-3 py-1.5 rounded-md border border-slate-200"
+            >
+              Anterior
+            </button>
+            <button
+              onClick={() => {
+                setFilters({ ...filters, pagina: Math.min(totalPages, filters.pagina + 1) });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              disabled={filters.pagina === totalPages}
+              className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-[#7c3aed] disabled:opacity-40 disabled:hover:text-slate-600 transition-colors bg-white px-3 py-1.5 rounded-md border border-slate-200"
+            >
+              Siguiente
+            </button>
+          </div>
+          <span className="text-xs text-slate-500 font-medium">
+            Página {filters.pagina} de {totalPages} ({totalRegistros} productos)
+          </span>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex items-center justify-between my-6 py-4 border-t border-slate-100">
-        <button 
+      <div className="flex items-center justify-between my-6 pt-4 border-t border-slate-100">
+        <button
           onClick={() => {
             setFilters({ ...filters, pagina: Math.max(1, filters.pagina - 1) });
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -118,7 +151,7 @@ export function CatalogoPage() {
         <span className="text-xs text-slate-500 font-medium">
           Página {filters.pagina} de {totalPages} ({totalRegistros} productos)
         </span>
-        <button 
+        <button
           onClick={() => {
             setFilters({ ...filters, pagina: Math.min(totalPages, filters.pagina + 1) });
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -133,7 +166,7 @@ export function CatalogoPage() {
   };
 
   return (
-    /* 👉 CAMBIO AQUÍ: Agregamos 'items-start'.
+    /* CAMBIO AQUÍ: Agregamos 'items-start'.
       Esto evita que la barra de filtros se estire hacia abajo acompañando al catálogo entero.
     */
     <div className="container mx-auto px-6 py-8 flex items-start gap-8 min-h-[60vh]">
@@ -144,7 +177,7 @@ export function CatalogoPage() {
           Catálogo de Productos
         </h2>
 
-        {renderPagination()}
+        {renderPagination(true)}
 
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -159,7 +192,7 @@ export function CatalogoPage() {
             ))}
           </div>
         )}
-        
+
         {/* Pagination Controls */}
         {renderPagination()}
 

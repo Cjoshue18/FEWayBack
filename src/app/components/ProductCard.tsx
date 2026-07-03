@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, Plus } from 'lucide-react';
 import { useFavorites } from '@/app/hooks/useFavorites';
 import { ProductQuickViewModal } from '@/app/components/ProductQuickViewModal';
@@ -61,6 +61,18 @@ export function ProductCard({ product }: ProductCardProps) {
   const wishlisted = isFavorite(product.id);
   const { activo: descuentoActivo, precioFinal } = calcularDescuento(product);
   const [selectedColorImg, setSelectedColorImg] = useState<string | null>(null);
+
+  // Preload de imágenes para que el hover sea instantáneo
+  useEffect(() => {
+    if (product.colorDots) {
+      product.colorDots.forEach(dot => {
+        if (dot.imgUrl) {
+          const img = new Image();
+          img.src = dot.imgUrl;
+        }
+      });
+    }
+  }, [product.colorDots]);
 
   const displayedImage = selectedColorImg || product.image;
 
