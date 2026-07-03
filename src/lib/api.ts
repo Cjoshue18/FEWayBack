@@ -1,5 +1,5 @@
-// Backend de producción en Render — conexión directa, sin proxy intermedio.
-export const API_BASE = 'https://y2kvault-backend.onrender.com';
+// Backend de producción en Render — URL configurada a través de variables de entorno (Vercel/.env)
+export const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 // ── INTERFACES EXISTENTES ──
 export interface RespuestaPaginada<T> {

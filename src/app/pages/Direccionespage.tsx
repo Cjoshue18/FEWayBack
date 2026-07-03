@@ -6,7 +6,7 @@ import { SearchBox } from '@mapbox/search-js-react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ?? 'pk.eyJ1IjoibWF0aGlhc3VycCIsImEiOiJjbXIxbGlhbmwwb2l3MnJvazRveDNneWY0In0.zqzbZwj4Bi-VDsZmF5NNPQ';
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || '';
 const LIMA_CENTER: [number, number] = [-77.0428, -12.0464];
 
 const MAPBOX_THEME = {
